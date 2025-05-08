@@ -84,11 +84,9 @@ class LSTM:
         Cs = torch.empty(4, self.m, tau, dtype=torch.float64)
         C_Hat_s = torch.empty(4, self.m, tau, dtype=torch.float64)
 
-        E = []
-        E_temp = torch.zeros(4, self.m, self.m)
+        E = torch.zeros(4, 4, self.m, self.m)
         for i in range(4):
-            E_i = E_temp[i] = torch.eye(self.m)
-            E.append(E_i)
+            E[i][i] = torch.eye(self.m)
 
         hprev = ht
         cprev = ct
