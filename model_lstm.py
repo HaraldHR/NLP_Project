@@ -138,6 +138,8 @@ X_seq = X[0:25]
 y_seq = data[1:26] # not one-hot encoded.
 y_seq_indices = [char_to_ind[char] for char in y_seq]
 
-network = LSTM(X)
+lstm = LSTM(X)
 
-network.forward(X_seq, y_seq_indices)
+loss = lstm.forward(X_seq, y_seq_indices)
+#grads = lstm.backward(loss)
+
