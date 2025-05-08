@@ -6,6 +6,8 @@ import numpy as np
 
 from model_RNN import RNN
 
+from synthesizer import synthesize_text
+
 
 # Load the data
 data, unique_chars = ReadData()
@@ -28,12 +30,12 @@ input_size = len(char_to_ind)  # Number of unique characters
 hidden_size = 128  # Hidden layer size
 output_size = len(char_to_ind)  # Output size is same as number of unique characters
 num_layers = 1  # Number of RNN layers
-num_epochs = 1  # Number of epochs for training
+num_epochs = 5  # Number of epochs for training
 
 # Create the model
 model = RNN(input_size, hidden_size, output_size, num_layers)
 
-subset_length = 10000  # or any length you want
+subset_length = 20000  # or any length you want
 
 # Slice the subset
 X_subset = X_tensor[:subset_length]
@@ -41,3 +43,9 @@ Y_subset = Y_tensor[:subset_length]
 
 # Train the model
 model.train_model(X_subset, Y_subset, num_epochs=num_epochs, seq_len=50, learning_rate=0.001)
+
+
+text = synthesize_text(model, "A", char_to_ind, ind_to_char, 50)
+
+print(text)
+

@@ -34,13 +34,11 @@ class RNN(nn.Module):
         total_length = X_input.size(0)
         input_size = X_input.size(1)
 
-        # Ensure X and Y have the same length
-        assert total_length == Y_input.size(0), "Input and target must have the same length"
+        # Convert Y to indices
+        Y_indices = torch.argmax(Y_input, dim=1)  # (total_length,)
 
-        # Loss function and optimizer
-        criterion = nn.MSELoss()
+        criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(self.parameters(), lr=learning_rate)
-
 
         num_chunks = (total_length - 1) // seq_len
 
@@ -49,13 +47,17 @@ class RNN(nn.Module):
 
             for c in range(num_chunks):
                 start = c * seq_len
-                end = start + seq_len + 1
+                end = start + seq_len
 
-                input_seq = X_input[start:end].unsqueeze(1)  # (seq_len, 1, input_size)
-                target_seq = Y_input[start:end].unsqueeze(1)  # (seq_len, 1, input_size)
+                input_seq = X_input[start:end].unsqueeze(1)
+                target_seq = Y_indices[start + 1:end + 1]
 
                 optimizer.zero_grad()
                 output_seq, hidden = self.forward(input_seq)
+
+                output_seq = output_seq.view(-1, input_size)
+                target_seq = target_seq.view(-1)
+
                 loss = criterion(output_seq, target_seq)
                 loss.backward()
                 optimizer.step()
@@ -64,4 +66,3 @@ class RNN(nn.Module):
 
             avg_loss = epoch_loss / num_chunks
             print(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {avg_loss:.4f}")
-
