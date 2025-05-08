@@ -74,7 +74,7 @@ class LSTM:
             h0 = torch.empty(self.m, 1, dtype=torch.float64) # Shape?
 
         # Initliazing the first hidden layer computaions.
-        tau = X.shape[1]
+        tau = X.shape[0]
         ht = h0
         ct = torch.zeros(1, self.m, dtype=torch.float64)
 
@@ -105,10 +105,10 @@ class LSTM:
             # Exa_t will have shape (4xmx1)
             #NOTE: Might be wrong shape.
 
-            Fs[t] = apply_sigmoid(at[0]).reshape(1, self.m) # forget gate.
-            Is[t] = apply_sigmoid(at[1]).reshape(1, self.m) # input gate.
-            Os[t] = apply_sigmoid(at[2]).reshape(1, self.m) # output gate.
-            C_Hat_s[t] = apply_tanh(at[3]).reshape(1, self.m) # new memory cell.
+            Fs[t] = apply_sigmoid(at[0]).squeeze() # forget gate.
+            Is[t] = apply_sigmoid(at[1]).squeeze() # input gate.
+            Os[t] = apply_sigmoid(at[2]).squeeze() # output gate.
+            C_Hat_s[t] = apply_tanh(at[3]).squeeze() # new memory cell.
             print("TEST")
             if t < 1:
                 Cs[t] = Fs[t] * cprev + Is[t] * C_Hat_s[t]
