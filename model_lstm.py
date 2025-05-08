@@ -4,9 +4,13 @@ This file contains the LSTM model.
 
 import torch
 import numpy as np
+from DataProcessing import *
 
 class LSTM:
-    def __init__(self, m=100, n_layers=2, lr=0.01, lam=0):
+    def __init__(self, X, m=100, n_layers=2, lr=0.01, lam=0):
+
+        # The one-hot encoded data
+        self.X = X
 
         # The starting learning rate of the model.
         self.lr = lr
@@ -21,7 +25,7 @@ class LSTM:
         self.L = n_layers
 
         # The dimension of the input and output.
-        self.K = None
+        self.K = X.shape[1]
 
         # Initializing trainable parameters
         self.W_all = None # Contains a vector with all W weight matrices
@@ -31,6 +35,8 @@ class LSTM:
 
         # Dynamic parameters.
         self.memory_vec = None
+        
+        self.init_model()
 
 
 
@@ -45,8 +51,9 @@ class LSTM:
         Initializes the LSTM model weights. 
         :return:
         '''
-        self.W_all = torch.empty(4, self.m, self.m, dtype=torch.float64)
-        self.U_all = torch.empty(4, self.m, self.m, dtype=torch.float64)
+        self.W_all = torch.empty(4, self.m, self.m, dtype=torch.float64, requires_grad=True)
+        self.U_all = torch.empty(4, self.m, self.K, dtype=torch.float64, requires_grad=True)
+        print(self.U_all.shape)
 
         # Xavier initialization for all weights.
         for i in range(4):
@@ -62,8 +69,10 @@ class LSTM:
         :param y: the encoded target vector.
         :return:
         '''
+
+        X = torch.from_numpy(X)
         if h0 is None:
-            h0 = torch.empty(1, self.m, dtype=torch.float64) # Shape?
+            h0 = torch.empty(self.m, 1, dtype=torch.float64) # Shape?
 
         # Initliazing the first hidden layer computaions.
         tau = X.shape[1]
@@ -92,7 +101,7 @@ class LSTM:
         cprev = ct
         for t in range(tau):
             # at will have shape (4xmx1)
-            at = torch.matmul(self.W_all, hprev) + torch.matmul(self.U_all, X[t])
+            at = torch.matmul(self.W_all, hprev) + torch.matmul(self.U_all, X[t].reshape(X[t].shape[0], 1))
             As[t] = at
             # Exa_t will have shape (4xmx1)
             #NOTE: Might be wrong shape.
@@ -116,3 +125,15 @@ class LSTM:
         loss.backward()
         return self.W_all.grad # unsure if correct.
          
+
+
+data, unique_chars = ReadData()
+char_to_ind, ind_to_char = GetDicts(unique_chars)
+X = ConvertToOneHot(data, char_to_ind)
+
+X_seq = X[0:25]
+y_seq = X[1:26]
+
+network = LSTM(X)
+
+network.forward(X_seq, y_seq)
