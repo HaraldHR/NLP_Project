@@ -8,10 +8,11 @@ from DataProcessing import *
 import copy
 
 class LSTM:
-    def __init__(self, X, m=100, n_layers=2, seq_len=25, lr=0.01, lam=0):
+    def __init__(self, X, test_size=0.2, m=100, n_layers=2, seq_len=25, lr=0.01, lam=0):
 
         # The one-hot encoded data
         self.X = X
+        self.test_size = test_size
 
         # The starting learning rate of the model.
         self.lr = lr
@@ -44,12 +45,6 @@ class LSTM:
 
 
 
-    def data(self):
-        t = torch.tensor((2,3))
-        print(t)
-
-
-
     def init_model(self):
         '''
         Initializes the LSTM model weights. 
@@ -77,7 +72,7 @@ class LSTM:
 
         X = torch.from_numpy(X)
 
-        assert(X.shape[0] == self.seq_len, f"X shape: {X.shape} != seq_len:{self.seq_len}")  # for catching errors.
+        assert X.shape[0] == self.seq_len, f"X shape: {X.shape} != seq_len:{self.seq_len}"  # for catching errors.
         tau = self.seq_len
 
         apply_tanh = torch.nn.Tanh()
@@ -98,10 +93,8 @@ class LSTM:
             Is.append(apply_sigmoid(at[1]).squeeze()) # input gate.
             Os.append(apply_sigmoid(at[2]).squeeze()) # output gate.
             C_Hat_s.append(apply_tanh(at[3]).squeeze()) # new memory cell.
-            if t < 1:
-                Cs.append(Fs[t] * cprev + Is[t] * C_Hat_s[t])
-            else:
-                Cs.append(Fs[t] * Cs[t - 1] + Is[t] * C_Hat_s[t]) # final memory cell.
+            cprev = Fs[t] * cprev + Is[t] * C_Hat_s[t]
+            Cs.append(cprev)
 
             Hs.append(Os[t] * apply_tanh(Cs[t]))
             hprev = Hs[t].reshape(self.m, 1)
@@ -128,9 +121,26 @@ class LSTM:
 
 
 
-    def train(self):
+    def fit(self, epochs=5):
+        n_batches = len(self.X) // self.seq_len  # number of full batches
+        trimmed_len = n_batches * self.seq_len
+        X_trimmed = X[:trimmed_len]  # trim off the remainder, OBS: Losing some characters, maybe not necessary!
+        Y_trimmed = X[1:trimmed_len + 1]
+        batches_X = X_trimmed.reshape(n_batches, self.seq_len, * X.shape[1:])
+        batches_Y = Y_trimmed.reshape(n_batches, self.seq_len, * X.shape[1:])
 
-        return
+        assert np.allclose(batches_Y[0, 0], batches_X[0, 1]), f"Data and labels are shifted wrong: Y: {batches_Y[0, 0]} != X: {batches_X[0, 1]}"
+
+        print(batches_X.shape)
+        for _ in range(epochs):
+            for i in range(batches_X.shape[0]):
+                loss = self.forward(batches_X[i], batches_Y[i])
+                grads_W, grads_U = self.backward(loss)
+
+                # Updates the weights
+                self.W_all -= grads_W * self.lr
+                self.U_all -= grads_U * self.lr
+
 
 
 data, unique_chars = ReadData()
@@ -146,4 +156,6 @@ lstm = LSTM(X)
 loss = lstm.forward(X_seq, y_seq_indices)
 grads_W, grads_U = lstm.backward(loss)
 print(grads_W[0])
+
+lstm.fit()
 
