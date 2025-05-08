@@ -78,11 +78,11 @@ class LSTM:
         # create an empty tensor to store the hidden vector at each timestep
         Hs = torch.empty(h0.shape[0], X.shape[1], dtype=torch.float64)
         As = torch.empty(h0.shape[0], X.shape[1], dtype=torch.float64)
-        Fs = torch.empty(4, self.m, tau, dtype=torch.float64) # is the 1 needed here?
-        Os = torch.empty(4, self.m, tau, dtype=torch.float64)
-        Is = torch.empty(4, self.m, tau, dtype=torch.float64)
-        Cs = torch.empty(4, self.m, tau, dtype=torch.float64)
-        C_Hat_s = torch.empty(4, self.m, tau, dtype=torch.float64)
+        Fs = torch.empty(self.m, tau, dtype=torch.float64) # is the 1 needed here?
+        Os = torch.empty(self.m, tau, dtype=torch.float64)
+        Is = torch.empty(self.m, tau, dtype=torch.float64)
+        Cs = torch.empty(self.m, tau, dtype=torch.float64)
+        C_Hat_s = torch.empty(self.m, tau, dtype=torch.float64)
 
         E = torch.zeros(4, 4, self.m, self.m)
         for i in range(4):
@@ -100,7 +100,10 @@ class LSTM:
             Is[t] = apply_sigmoid(torch.matmul(E[1], at)) # input gate.
             Os[t] = apply_sigmoid(torch.matmul(E[2], at)) # output gate.
             C_Hat_s[t] = apply_tanh(torch.matmul(E[3], at)) # new memory cell.
-            Cs[t] = Fs[t] * Cs[t-1] + Is[t] * C_Hat_s[t] # final memory cell.
+            if t < 1:
+                Cs[t] = Fs[t] * cprev + Is[t] * C_Hat_s[t]
+            else:
+                Cs[t] = Fs[t] * Cs[t - 1] + Is[t] * C_Hat_s[t]  # final memory cell.
 
             Hs[t] = Os[t] * apply_tanh(Cs[t])
             hprev = Hs[t]
@@ -114,5 +117,5 @@ class LSTM:
 
     def backward(self, loss):
         loss.backward()
-        return self.W_all.grad # unsure if correct.
+        return (self.W_all.grad, self.U_all.grad) # unsure if correct.
          
