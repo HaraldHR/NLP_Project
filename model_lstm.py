@@ -8,7 +8,7 @@ from DataProcessing import *
 import copy
 
 class LSTM:
-    def __init__(self, X, m=100, n_layers=2, lr=0.01, lam=0):
+    def __init__(self, X, m=100, n_layers=2, seq_len=25, lr=0.01, lam=0):
 
         # The one-hot encoded data
         self.X = X
@@ -27,6 +27,9 @@ class LSTM:
 
         # The dimension of the input and output.
         self.K = X.shape[1]
+
+        # The length of each sequence being inputted to the backprop.
+        self.seq_len = seq_len
 
         # Initializing trainable parameters
         self.W_all = None # Contains a vector with all W weight matrices
@@ -65,42 +68,25 @@ class LSTM:
     def forward(self, X, y, h0=None):
         '''
         Computes the forward pass of the LSTM model to make a prediction.
-        :param X: the encoded input vector.
-        :param y: the encoded target vector.
-        :return:
+        :param X: the BATCH encoded input vector.
+        :param y: the BATCH encoded target vector, NOT one-hot-encoded.
+        :return: loss
         '''
+        if h0 is None:
+            h0 = torch.empty(self.m, 1, dtype=torch.float64) # shape (m, 1).
 
         X = torch.from_numpy(X)
-        if h0 is None:
-            h0 = torch.empty(self.m, 1, dtype=torch.float64) # Shape?
 
-        # Initliazing the first hidden layer computaions.
-        tau = X.shape[0]
-        ht = h0
-        ct = torch.zeros(1, self.m, dtype=torch.float64)
+        assert(X.shape[0] == self.seq_len, f"X shape: {X.shape} != seq_len:{self.seq_len}")  # for catching errors.
+        tau = self.seq_len
 
-        ## give informative names to these torch classes
         apply_tanh = torch.nn.Tanh()
         apply_sigmoid = torch.nn.Sigmoid()
         apply_softmax = torch.nn.Softmax(dim=1)
 
-        # create an empty tensor to store the hidden vector at each timestep
-        Hs = torch.empty(tau, self.m, dtype=torch.float64)
-        As = torch.empty(tau, 4, self.m, dtype=torch.float64)
-        Fs = torch.empty(tau, self.m, dtype=torch.float64) # is the 1 needed here?
-        Os = torch.empty(tau, self.m, dtype=torch.float64)
-        Is = torch.empty(tau, self.m, dtype=torch.float64)
-        Cs = torch.empty(tau, self.m, dtype=torch.float64)
-        C_Hat_s = torch.empty(tau, self.m, dtype=torch.float64)
-
         As, Fs, Is, Os, Cs, C_Hat_s, Hs = [], [], [], [], [], [], []
-
-        E = torch.zeros(4, 4, self.m, self.m, dtype=torch.float64)
-        for i in range(4):
-            E[i][i] = torch.eye(self.m)
-
-        hprev = ht
-        cprev = ct
+        hprev = h0
+        cprev = torch.zeros(1, self.m, dtype=torch.float64)
         for t in range(tau):
             # at will have shape (4xmx1)
             at = torch.matmul(self.W_all, hprev) + torch.matmul(self.U_all, X[t].reshape(X[t].shape[0], 1))
@@ -134,10 +120,17 @@ class LSTM:
         loss = torch.mean(-torch.log(P[np.arange(tau), y]))  # use this line if storing inputs row-wise
         return loss
 
+
+
     def backward(self, loss):
         loss.backward()
         return (self.W_all.grad, self.U_all.grad) # unsure if correct.
-         
+
+
+
+    def train(self):
+
+        return
 
 
 data, unique_chars = ReadData()
