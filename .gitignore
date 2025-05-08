@@ -1,0 +1,72 @@
+# Byte-compiled / optimized / DLL files
+*.py[cod]
+__pycache__/
+*.so
+
+# C extensions
+*.pyd
+*.pyo
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+lib/
+lib64/
+*.egg
+*.egg-info/
+.installed.cfg
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+nosetests.xml
+coverage.xml
+*.cover
+*.hypothesis/
+*.tox/
+*.nox/
+*.coverage
+*.pytest_cache/
+*.coverage
+
+# pyenv
+.python-version
+
+# virtualenv
+venv/
+env/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# VS Code settings
+.vscode/
+
+# PyCharm project settings
+.idea/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# mypy
+.mypy_cache/
+
+# Pyre type checker
+.pyre/
+
+# VS Code
+.vscode/
