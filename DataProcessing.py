@@ -20,8 +20,32 @@ def ConvertToOneHot(chars, char_to_ind):
         one_hot[i, char_to_ind[chars[i]]] = 1 
     return one_hot
 
+def TrainTestSplit(X, train_size): # X is one-hot encoded, train_size is a fraction.
+    n = X.shape[0]
+    split_index = int(n * train_size)
+    X_train = X[:split_index]
+    X_test = X[split_index]
+    return X_train, X_test
 
+def TrainValSplit(X, val_size): # Simply for clearer naming
+    return TrainTestSplit(X, val_size)
+
+def GetTrainBatches(X, batch_size):
+    n = len(X)
+    n_batches = n // batch_size  # number of full batches
+    trimmed_len = n_batches * batch_size
+
+    X_trimmed = X[:trimmed_len]  # trim off the remainder, OBS: Losing some characters, maybe not necessary!
+    batches = X_trimmed.reshape(n_batches, batch_size, *X.shape[1:])
+
+    return batches # maybe shuffle batches later.
+
+   
+"""
 data, unique_chars = ReadData()
 char_to_ind, ind_to_char = GetDicts(unique_chars)
 X = ConvertToOneHot(data, char_to_ind)
-print(X.shape)
+
+batches = GetTrainBatches(X, 25)
+print(batches[0][0])
+"""
