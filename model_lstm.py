@@ -136,7 +136,7 @@ char_to_ind, ind_to_char = GetDicts(unique_chars)
 X = ConvertToOneHot(data, char_to_ind)
 
 X_seq = X[0:25]
-y_seq = X[1:26]
+y_seq = data[1:26] # not one-hot encoded.
 
 network = LSTM(X)
 
