@@ -85,15 +85,15 @@ class LSTM:
         apply_softmax = torch.nn.Softmax(dim=1)
 
         # create an empty tensor to store the hidden vector at each timestep
-        Hs = torch.empty(h0.shape[0], X.shape[1], dtype=torch.float64)
-        As = torch.empty(h0.shape[0], X.shape[1], dtype=torch.float64)
-        Fs = torch.empty(self.m, tau, dtype=torch.float64) # is the 1 needed here?
-        Os = torch.empty(self.m, tau, dtype=torch.float64)
-        Is = torch.empty(self.m, tau, dtype=torch.float64)
-        Cs = torch.empty(self.m, tau, dtype=torch.float64)
-        C_Hat_s = torch.empty(self.m, tau, dtype=torch.float64)
+        Hs = torch.empty(tau, self.m, dtype=torch.float64)
+        As = torch.empty(tau, 4, self.m, dtype=torch.float64)
+        Fs = torch.empty(tau, self.m, dtype=torch.float64) # is the 1 needed here?
+        Os = torch.empty(tau, self.m, dtype=torch.float64)
+        Is = torch.empty(tau, self.m, dtype=torch.float64)
+        Cs = torch.empty(tau, self.m, dtype=torch.float64)
+        C_Hat_s = torch.empty(tau, self.m, dtype=torch.float64)
 
-        E = torch.zeros(4, 4, self.m, self.m)
+        E = torch.zeros(4, 4, self.m, self.m, dtype=torch.float64)
         for i in range(4):
             E[i][i] = torch.eye(self.m)
 
@@ -102,9 +102,11 @@ class LSTM:
         for t in range(tau):
             # at will have shape (4xmx1)
             at = torch.matmul(self.W_all, hprev) + torch.matmul(self.U_all, X[t].reshape(X[t].shape[0], 1))
-            As[t] = at
+            As[t] = at.reshape(4, self.m)
             # Exa_t will have shape (4xmx1)
             #NOTE: Might be wrong shape.
+
+            print(E[0].shape)
             Fs[t] = apply_sigmoid(torch.matmul(E[0], at)) # forget gate.
             Is[t] = apply_sigmoid(torch.matmul(E[1], at)) # input gate.
             Os[t] = apply_sigmoid(torch.matmul(E[2], at)) # output gate.
