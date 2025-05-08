@@ -24,9 +24,18 @@ class LSTM:
         self.K = None
 
         # Initializing trainable parameters
-        self.V = None
-        self.W = None
-        self.U = None
+        self.W_all = None # Contains a vector with all W weight matrices
+        self.W_f = None # W weights have shapes (m, m).
+        self.W_i = None
+        self.W_c = None
+        self.W_o = None
+
+        self.U_all = None # Contains a vector will all U weight matrices.
+        self.U_f = None # U are input weights with shapes (k, m).
+        self.U_i = None
+        self.U_c = None
+        self.U_o = None
+
         self.B = None
         self.C = None
 
@@ -56,29 +65,49 @@ class LSTM:
         if h0 is None:
             h0 = torch.empty(1, self.m, dtype=torch.float64) # Shape?
 
-
         # Initliazing the first hidden layer computaions.
         tau = X.shape[1]
         ht = h0
+        ct = torch.zeros(1, self.m, dtype=torch.float64)
 
         ## give informative names to these torch classes
         apply_tanh = torch.nn.Tanh()
+        apply_sigmoid = torch.nn.Sigmoid()
         apply_softmax = torch.nn.Softmax(dim=1)
 
         # create an empty tensor to store the hidden vector at each timestep
         Hs = torch.empty(h0.shape[0], X.shape[1], dtype=torch.float64)
         As = torch.empty(h0.shape[0], X.shape[1], dtype=torch.float64)
+        Fs = torch.empty(4, self.m, tau, dtype=torch.float64) # is the 1 needed here?
+        Os = torch.empty(4, self.m, tau, dtype=torch.float64)
+        Is = torch.empty(4, self.m, tau, dtype=torch.float64)
+        Cs = torch.empty(4, self.m, tau, dtype=torch.float64)
+        C_Hat_s = torch.empty(4, self.m, tau, dtype=torch.float64)
+
+        E = []
+        E_temp = torch.zeros(4, self.m, self.m)
+        for i in range(4):
+            E_i = E_temp[i] = torch.eye(self.m)
+            E.append(E_i)
 
         hprev = ht
+        cprev = ct
         for t in range(tau):
-            at = torch.matmul(self.W, hprev) + torch.matmul(self.U, X[:, t:t + 1]) + \
-                 self.B
-            As[:, t:t + 1] = at
-            ht = apply_tanh(at)
-            Hs[:, t:t + 1] = ht
-            hprev = ht
+            # at will have shape (4xmx1)
+            at = torch.matmul(self.W_all, hprev) + torch.matmul(self.U_all, X[t])
+            As[t] = at
+            # Exa_t will have shape (4xmx1)
+            #NOTE: Might be wrong shape.
+            Fs[t] = apply_sigmoid(torch.matmul(E[0], at)) # forget gate.
+            Is[t] = apply_sigmoid(torch.matmul(E[1], at)) # input gate.
+            Os[t] = apply_sigmoid(torch.matmul(E[2], at)) # output gate.
+            C_Hat_s[t] = apply_tanh(torch.matmul(E[3], at)) # new memory cell.
+            Cs[t] = Fs[t] * Cs[t-1] + Is[t] * C_Hat_s[t] # final memory cell.
 
-        Os = torch.matmul(Hs, self.V) + self.C
+            Hs[t] = Os[t] * apply_tanh(Cs[t])
+            hprev = Hs[t]
+
+        # Os = torch.matmul(Hs, self.W_o) + self.C
         P = apply_softmax(Os)
 
         # compute the loss
