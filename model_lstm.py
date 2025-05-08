@@ -53,7 +53,6 @@ class LSTM:
         '''
         self.W_all = torch.empty(4, self.m, self.m, dtype=torch.float64, requires_grad=True)
         self.U_all = torch.empty(4, self.m, self.K, dtype=torch.float64, requires_grad=True)
-        print(self.U_all.shape)
 
         # Xavier initialization for all weights.
         for i in range(4):
@@ -102,22 +101,22 @@ class LSTM:
         for t in range(tau):
             # at will have shape (4xmx1)
             at = torch.matmul(self.W_all, hprev) + torch.matmul(self.U_all, X[t].reshape(X[t].shape[0], 1))
-            As[t] = at.reshape(4, self.m)
+            As[t] = at.reshape(at.shape[0], at.shape[1])
             # Exa_t will have shape (4xmx1)
             #NOTE: Might be wrong shape.
 
-            print(E[0].shape)
-            Fs[t] = apply_sigmoid(torch.matmul(E[0], at)) # forget gate.
-            Is[t] = apply_sigmoid(torch.matmul(E[1], at)) # input gate.
-            Os[t] = apply_sigmoid(torch.matmul(E[2], at)) # output gate.
-            C_Hat_s[t] = apply_tanh(torch.matmul(E[3], at)) # new memory cell.
+            Fs[t] = apply_sigmoid(at[0]).reshape(1, self.m) # forget gate.
+            Is[t] = apply_sigmoid(at[1]).reshape(1, self.m) # input gate.
+            Os[t] = apply_sigmoid(at[2]).reshape(1, self.m) # output gate.
+            C_Hat_s[t] = apply_tanh(at[3]).reshape(1, self.m) # new memory cell.
+            print("TEST")
             if t < 1:
                 Cs[t] = Fs[t] * cprev + Is[t] * C_Hat_s[t]
             else:
                 Cs[t] = Fs[t] * Cs[t - 1] + Is[t] * C_Hat_s[t]  # final memory cell.
 
             Hs[t] = Os[t] * apply_tanh(Cs[t])
-            hprev = Hs[t]
+            hprev = Hs[t].reshape(self.m, 1)
 
         # Os = torch.matmul(Hs, self.W_o) + self.C
         P = apply_softmax(Os)
