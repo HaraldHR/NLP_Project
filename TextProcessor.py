@@ -17,10 +17,6 @@ class TextProcessor:
         unique_words = set(words)
         return {word: 1 for word in unique_words}
 
-    def to_lower_case(self, X):
-        for i in range(X.shape[0]):
-            X[i] = X[i].lower()  # Fixed method call by adding parentheses
-
     def correctly_spelt_count(self, text):
         text_lower = text.lower()
         words = re.findall(r"[,\$\?'\n&;:\s\-\.\!]+", text_lower)
