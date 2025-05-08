@@ -109,7 +109,6 @@ class LSTM:
             Is[t] = apply_sigmoid(at[1]).squeeze() # input gate.
             Os[t] = apply_sigmoid(at[2]).squeeze() # output gate.
             C_Hat_s[t] = apply_tanh(at[3]).squeeze() # new memory cell.
-            print("TEST")
             if t < 1:
                 Cs[t] = Fs[t] * cprev + Is[t] * C_Hat_s[t]
             else:
@@ -137,7 +136,8 @@ X = ConvertToOneHot(data, char_to_ind)
 
 X_seq = X[0:25]
 y_seq = data[1:26] # not one-hot encoded.
+y_seq_indices = [char_to_ind[char] for char in y_seq]
 
 network = LSTM(X)
 
-network.forward(X_seq, y_seq)
+network.forward(X_seq, y_seq_indices)
