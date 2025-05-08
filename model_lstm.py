@@ -112,5 +112,7 @@ class LSTM:
         loss = torch.mean(-torch.log(P[np.arange(tau), y]))  # use this line if storing inputs row-wise
         return loss
 
-
-
+    def backward(self, loss):
+        loss.backward()
+        return self.W_all.grad # unsure if correct.
+         
