@@ -25,17 +25,7 @@ class LSTM:
 
         # Initializing trainable parameters
         self.W_all = None # Contains a vector with all W weight matrices
-        self.W_f = None # W weights have shapes (m, m).
-        self.W_i = None
-        self.W_c = None
-        self.W_o = None
-
         self.U_all = None # Contains a vector will all U weight matrices.
-        self.U_f = None # U are input weights with shapes (k, m).
-        self.U_i = None
-        self.U_c = None
-        self.U_o = None
-
         self.B = None
         self.C = None
 
@@ -51,7 +41,17 @@ class LSTM:
 
 
     def init_model(self):
-        return
+        '''
+        Initializes the LSTM model weights. 
+        :return:
+        '''
+        self.W_all = torch.empty(4, self.m, self.m, dtype=torch.float64)
+        self.U_all = torch.empty(4, self.m, self.m, dtype=torch.float64)
+
+        # Xavier initialization for all weights.
+        for i in range(4):
+            torch.nn.init.xavier_uniform_(self.W_all[i])
+            torch.nn.init.xavier_uniform_(self.U_all[i])
 
 
 
