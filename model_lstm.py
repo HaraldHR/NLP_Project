@@ -138,6 +138,8 @@ X = ConvertToOneHot(data, char_to_ind)
 X_seq = X[0:25]
 y_seq = data[1:26] # not one-hot encoded.
 
-network = LSTM(X)
+lstm = LSTM(X)
 
-network.forward(X_seq, y_seq)
+loss = lstm.forward(X_seq, y_seq)
+grads = lstm.backward(loss)
+print(grads)
