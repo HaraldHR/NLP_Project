@@ -5,6 +5,7 @@ This file contains the LSTM model.
 import torch
 import numpy as np
 from DataProcessing import *
+import copy
 
 class LSTM:
     def __init__(self, X, m=100, n_layers=2, lr=0.01, lam=0):
@@ -92,6 +93,8 @@ class LSTM:
         Cs = torch.empty(tau, self.m, dtype=torch.float64)
         C_Hat_s = torch.empty(tau, self.m, dtype=torch.float64)
 
+        As, Fs, Is, Os, Cs, C_Hat_s, Hs = [], [], [], [], [], [], []
+
         E = torch.zeros(4, 4, self.m, self.m, dtype=torch.float64)
         for i in range(4):
             E[i][i] = torch.eye(self.m)
@@ -101,23 +104,30 @@ class LSTM:
         for t in range(tau):
             # at will have shape (4xmx1)
             at = torch.matmul(self.W_all, hprev) + torch.matmul(self.U_all, X[t].reshape(X[t].shape[0], 1))
-            As[t] = at.reshape(at.shape[0], at.shape[1])
+            As.append(at.squeeze())
             # Exa_t will have shape (4xmx1)
             #NOTE: Might be wrong shape.
 
-            Fs[t] = apply_sigmoid(at[0]).squeeze() # forget gate.
-            Is[t] = apply_sigmoid(at[1]).squeeze() # input gate.
-            Os[t] = apply_sigmoid(at[2]).squeeze() # output gate.
-            C_Hat_s[t] = apply_tanh(at[3]).squeeze() # new memory cell.
+            Fs.append(apply_sigmoid(at[0]).squeeze()) # forget gate.
+            Is.append(apply_sigmoid(at[1]).squeeze()) # input gate.
+            Os.append(apply_sigmoid(at[2]).squeeze()) # output gate.
+            C_Hat_s.append(apply_tanh(at[3]).squeeze()) # new memory cell.
             if t < 1:
-                Cs[t] = Fs[t] * cprev + Is[t] * C_Hat_s[t]
+                Cs.append(Fs[t] * cprev + Is[t] * C_Hat_s[t])
             else:
-                Cs[t] = Fs[t] * Cs[t - 1] + Is[t] * C_Hat_s[t]  # final memory cell.
+                Cs.append(Fs[t] * Cs[t - 1] + Is[t] * C_Hat_s[t]) # final memory cell.
 
-            Hs[t] = Os[t] * apply_tanh(Cs[t])
+            Hs.append(Os[t] * apply_tanh(Cs[t]))
             hprev = Hs[t].reshape(self.m, 1)
 
         # Os = torch.matmul(Hs, self.W_o) + self.C
+        Hs = torch.stack(Hs, dim=0)  # shape (tau, m, 1)
+        As = torch.stack(As, dim=0)
+        Fs = torch.stack(Fs, dim=0)
+        Is = torch.stack(Is, dim=0)
+        Os = torch.stack(Os, dim=0)
+        C_Hat_s = torch.stack(C_Hat_s, dim=0)
+        Cs = torch.stack(Cs, dim=0)
         P = apply_softmax(Os)
 
         # compute the loss
@@ -141,5 +151,6 @@ y_seq_indices = [char_to_ind[char] for char in y_seq]
 lstm = LSTM(X)
 
 loss = lstm.forward(X_seq, y_seq_indices)
-#grads = lstm.backward(loss)
+grads_W, grads_U = lstm.backward(loss)
+print(grads_W[0])
 
