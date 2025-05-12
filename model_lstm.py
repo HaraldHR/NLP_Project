@@ -96,7 +96,7 @@ class LSTM:
         #print(self.U_all[0][0])
         #print(self.B[0])
         if h0 is None:
-            h0 = torch.empty(self.m[0], 1, dtype=torch.float64) # shape (m, 1).
+            h0 = torch.zeros(self.m[0], 1, dtype=torch.float64) # shape (m, 1).
 
         X = torch.from_numpy(X)
 
@@ -122,13 +122,13 @@ class LSTM:
                 # at will have shape (4 x m x 1)
                 
 
-                at = torch.matmul(self.W_all[l], hprev) + torch.matmul(self.U_all[l], current_X[t].reshape(current_X[t].shape[0], 1)) + self.B[l].unsqueeze(2) # Include biases
+                a_t = torch.matmul(self.W_all[l], hprev) + torch.matmul(self.U_all[l], current_X[t].reshape(current_X[t].shape[0], 1)) + self.B[l].unsqueeze(2) # Include biases
             
 
-                f_t = apply_sigmoid(at[0]).squeeze() # forget gate.
-                i_t = apply_sigmoid(at[1]).squeeze() # input gate.
-                o_t = apply_sigmoid(at[2]).squeeze() # output gate.
-                c_hat_t = apply_tanh(at[3]).squeeze() # new memory cell.
+                f_t = apply_sigmoid(a_t[0]).squeeze() # forget gate.
+                i_t = apply_sigmoid(a_t[1]).squeeze() # input gate.
+                o_t = apply_sigmoid(a_t[2]).squeeze() # output gate.
+                c_hat_t = apply_tanh(a_t[3]).squeeze() # new memory cell.
                 cprev = f_t * cprev + i_t * c_hat_t
 
                 h_t = o_t * apply_tanh(cprev)
@@ -151,10 +151,10 @@ class LSTM:
             #print("Layer " + str(l + 1) + " complete!")
             
 
-        s = torch.matmul(self.V, Hs_L.reshape(self.m[-1], 1)) + self.C
+        S = torch.matmul(self.V, Hs_L.reshape(self.m[-1], 1)) + self.C
         #print(Hs[-1][-1].reshape(self.m[-1], 1).shape)
-        P = apply_softmax(s).squeeze()
-
+        P = apply_softmax(S).squeeze()
+        
         # compute the loss
         loss = torch.mean(-torch.log(P[np.arange(tau), y]))  # use this line if storing inputs row-wise 
         return loss
@@ -162,7 +162,22 @@ class LSTM:
 
 
     def backward(self, loss):
+        # Zero gradients first
+        for l in range(self.L):
+            if self.W_all[l].grad is not None:
+                self.W_all[l].grad.zero_()
+            if self.U_all[l].grad is not None:
+                self.U_all[l].grad.zero_()
+            if self.B[l].grad is not None:
+                self.B[l].grad.zero_()
+        if self.V.grad is not None:
+            self.V.grad.zero_()
+        if self.C.grad is not None:
+            self.C.grad.zero_()
+        
         loss.backward()
+        # Clip gradients
+        torch.nn.utils.clip_grad_norm_([*self.W_all.values(), *self.U_all.values(), *self.B.values(), self.V, self.C], 5.0)
     
     def synth_text(self, x0, n, ind_to_char, char_to_ind, rng, h0 = None):
         '''
@@ -196,12 +211,12 @@ class LSTM:
 
         for _ in range(n):  # for each time step
             for l in range(self.L):
-                at = self.W_all[l] @ h[l] + (self.U_all[l] @ x).unsqueeze(2) + self.B[l].unsqueeze(2)
+                a_t = self.W_all[l] @ h[l] + (self.U_all[l] @ x).unsqueeze(2) + self.B[l].unsqueeze(2)
 
-                f_t = apply_sigmoid(at[0])
-                i_t = apply_sigmoid(at[1])
-                o_t = apply_sigmoid(at[2])
-                c_hat = apply_tanh(at[3])
+                f_t = apply_sigmoid(a_t[0])
+                i_t = apply_sigmoid(a_t[1])
+                o_t = apply_sigmoid(a_t[2])
+                c_hat = apply_tanh(a_t[3])
 
                 c[l] = f_t * c[l] + i_t * c_hat
                 h[l] = o_t * apply_tanh(c[l])
