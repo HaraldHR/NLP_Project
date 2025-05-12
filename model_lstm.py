@@ -8,7 +8,7 @@ from DataProcessing import *
 import copy
 
 class LSTM:
-    def __init__(self, X, test_size=0.2, m=100, n_layers=2, seq_len=25, lr=0.01, lam=0):
+    def __init__(self, X, test_size=0.2, m=[100, 50], n_layers=2, seq_len=25, lr=0.01, lam=0):
 
         # The one-hot encoded data
         self.X = X
@@ -27,7 +27,7 @@ class LSTM:
         self.L = n_layers
 
         # The dimension of the input and output.
-        self.K = X.shape[1]
+        self.K = [X.shape[1]]
 
         # The length of each sequence being inputted to the backprop.
         self.seq_len = seq_len
@@ -35,9 +35,9 @@ class LSTM:
         # Initializing trainable parameters
         self.W_all = {} # Contains a vector with all W weight matrices
         self.U_all = {} # Contains a vector will all U weight matrices.
-        self.V = {} # output weight matrix
+        self.V = None # output weight matrix
         self.B = {}
-        self.C = {}
+        self.C = None
 
         # Dynamic parameters.
         self.memory_vec = None
@@ -51,22 +51,31 @@ class LSTM:
         Initializes the LSTM model weights. 
         :return:
         '''
+        for l in range(self.L): # K[0] is already adde to the list earlier.
+            self.K.append(self.m[l]) # K_l = m_l - 1
+
         # Xavier initialization for layer 1 weights.
-        self.W_all[0], self.U_all[0], self.V[0], self.B[0], self.C[0] = self.init_weights(self.m, self.K)
+        for l in range(self.L):
+            W_all, U_all, B = self.init_weights(self.m[l], self.K[l])
+            self.W_all[l] = torch.tensor(W_all, requires_grad=True)
+            self.U_all[l] = torch.tensor(U_all, requires_grad=True)
+            self.B[l] = torch.tensor(B, requires_grad=True)
+        
+        self.V = torch.empty(self.K[0], self.m[-1], dtype=torch.float64, requires_grad=True)
+        self.C = torch.empty(self.K[0], dtype=torch.float64, requires_grad=True)
 
-    def init_weights(self, dim1, dim2):
-            W_all = torch.empty(4, dim1, dim2, dtype=torch.float64, requires_grad=True)
-            U_all = torch.empty(4, dim1, dim2, dtype=torch.float64, requires_grad=True)
-            V = torch.empty(dim2, dim1, dtype=torch.float64, requires_grad=True)
 
-            B = torch.zeros(4, dim1, dtype=torch.float64, requires_grad=True) # Gate biases
-            C = torch.zeros(dim2, dtype=torch.float64, requires_grad=True) # Output bias
+
+    def init_weights(self, m, K):
+            W_all = torch.empty(4, m, m, dtype=torch.float64)
+            U_all = torch.empty(4, m, K, dtype=torch.float64)
+
+            B = torch.zeros(4, m, dtype=torch.float64) # Gate biases
             for i in range(4):
                 torch.nn.init.xavier_uniform_(W_all[i])
                 torch.nn.init.xavier_uniform_(U_all[i])
-            torch.nn.init.xavier_uniform_(V)
 
-            return W_all, U_all, V, B, C
+            return W_all, U_all, B
         
 
     def forward(self, X, y, h0=None):
@@ -76,8 +85,11 @@ class LSTM:
         :param y: the BATCH encoded target vector, NOT one-hot-encoded.
         :return: loss
         '''
+        #print(self.W_all[0][0])
+        #print(self.U_all[0][0])
+        #print(self.B[0])
         if h0 is None:
-            h0 = torch.empty(self.m, 1, dtype=torch.float64) # shape (m, 1).
+            h0 = torch.empty(self.m[0], 1, dtype=torch.float64) # shape (m, 1).
 
         X = torch.from_numpy(X)
 
@@ -91,16 +103,17 @@ class LSTM:
         
 
         hprev = h0
-        cprev = torch.zeros(1, self.m, dtype=torch.float64)
-        As, Fs, Is, Os, Cs, C_Hat_s, Hs, St = [None] * self.L, [None] * self.L, [None] * self.L, [None] * self.L, [None] * self.L, [None] * self.L, [None] * self.L, [None] * self.L
+        cprev = torch.zeros(1, self.m[0], dtype=torch.float64)
+        As, Fs, Is, Os, Cs, C_Hat_s, Hs, St = [None] * self.L, [None] * self.L, [None] * self.L, [None] * self.L, [None] * self.L, [None] * self.L, [None] * self.L, []
         
         current_X = X
         for l in range(self.L): # for each layer
-            As[l], Fs[l], Is[l], Os[l], Cs[l], C_Hat_s[l], Hs[l], St[l] = [], [], [], [], [], [], [], []
+            As[l], Fs[l], Is[l], Os[l], Cs[l], C_Hat_s[l], Hs[l] = [], [], [], [], [], [], []
+            
             for t in range(tau):
-                # at will have shape (4xmx1)
-                #print((torch.matmul(self.W_all, hprev) + torch.matmul(self.U_all, X[t].reshape(X[t].shape[0], 1))).shape)
-                #print(self.B.shape)
+                # at will have shape (4 x m x 1)
+                
+
                 at = torch.matmul(self.W_all[l], hprev) + torch.matmul(self.U_all[l], current_X[t].reshape(current_X[t].shape[0], 1)) + self.B[l].unsqueeze(2) # Include biases
                 As[l].append(at.squeeze())
                 # Exa_t will have shape (4xmx1)
@@ -114,39 +127,32 @@ class LSTM:
                 Cs[l].append(cprev)
 
                 Hs[l].append(Os[l][t] * apply_tanh(Cs[l][t]))
-                hprev = Hs[l][t].reshape(self.m, 1)
-                #NEW:
-                St[l].append(torch.matmul(self.V[l], Hs[l][t].reshape(self.m, 1)) + self.C[l])
+                hprev = Hs[l][t].reshape(self.m[l], 1)
+                
 
             # input for next layer:
             current_X = torch.stack(Hs[l], dim=0).squeeze()
             # the first values for the next layer:
-            hprev = Hs[l][-1] 
-            cprev = Cs[l][-1]
+            if l < self.L - 1: 
+                hprev = torch.empty(self.m[l + 1], 1, dtype=torch.float64) # new h0
+                cprev = torch.zeros(1, self.m[l + 1], dtype=torch.float64) # new c0
             #print(current_X.squeeze().shape)
             #print(hprev.shape)
             #print(cprev.shape)
+            print("Layer " + str(l + 1) + " complete!")
 
-        # Os = torch.matmul(Hs, self.W_o) + self.C
-        Hs = torch.stack(Hs, dim=0)  # shape (tau, m, 1)
-        As = torch.stack(As, dim=0)
-        Fs = torch.stack(Fs, dim=0)
-        Is = torch.stack(Is, dim=0)
-        Os = torch.stack(Os, dim=0)
-        C_Hat_s = torch.stack(C_Hat_s, dim=0)
-        St = torch.stack(St, dim=0)
-        Cs = torch.stack(Cs, dim=0)
-        P = apply_softmax(St).squeeze()
+        s = torch.matmul(self.V, Hs[-1][-1].reshape(self.m[-1], 1)) + self.C
+        #print(Hs[-1][-1].reshape(self.m[-1], 1).shape)
+        P = apply_softmax(s).squeeze()
 
         # compute the loss
-        loss = torch.mean(-torch.log(P[np.arange(tau), y]))  # use this line if storing inputs row-wise
+        loss = torch.mean(-torch.log(P[np.arange(tau), y]))  # use this line if storing inputs row-wise 
         return loss
 
 
 
     def backward(self, loss):
         loss.backward()
-        return self.W_all.grad, self.U_all.grad, self.V.grad, self.B.grad, self.C.grad
 
     
     def synth_text(self, x0, n, ind_to_char, char_to_ind, rng, h0 = None):
@@ -245,9 +251,13 @@ y_seq_indices = [char_to_ind[char] for char in y_seq]
 
 lstm = LSTM(X)
 
-print(lstm.W_all)
-#loss = lstm.forward(X_seq, y_seq_indices)
-#grads_W, grads_U, grads_V, grads_B, grads_C = lstm.backward(loss)
+#print(lstm.W_all)
+loss = lstm.forward(X_seq, y_seq_indices)
+grads = lstm.backward(loss)
+print(lstm.V.grad[0])
+print(lstm.W_all[0].grad[0])
+print(torch.any(lstm.W_all[0].grad != 0))
+
 #synth_text = lstm.synth_text("a", 25, ind_to_char, char_to_ind, rng)
 #print(synth_text)
 #lstm.fit()
