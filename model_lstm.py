@@ -33,11 +33,11 @@ class LSTM:
         self.seq_len = seq_len
 
         # Initializing trainable parameters
-        self.W_all = None # Contains a vector with all W weight matrices
-        self.U_all = None # Contains a vector will all U weight matrices.
-        self.V = None # output weight matrix
-        self.B = None
-        self.C = None
+        self.W_all = {} # Contains a vector with all W weight matrices
+        self.U_all = {} # Contains a vector will all U weight matrices.
+        self.V = {} # output weight matrix
+        self.B = {}
+        self.C = {}
 
         # Dynamic parameters.
         self.memory_vec = None
@@ -51,21 +51,23 @@ class LSTM:
         Initializes the LSTM model weights. 
         :return:
         '''
-        self.W_all = torch.empty(4, self.m, self.m, dtype=torch.float64, requires_grad=True)
-        self.U_all = torch.empty(4, self.m, self.K, dtype=torch.float64, requires_grad=True)
-        self.V = torch.empty(self.K, self.m, dtype=torch.float64, requires_grad=True)
+        # Xavier initialization for layer 1 weights.
+        self.W_all[0], self.U_all[0], self.V[0], self.B[0], self.C[0] = self.init_weights(self.m, self.K)
 
-        self.B = torch.zeros(4, self.m, dtype=torch.float64, requires_grad=True) # Gate biases
-        self.C = torch.zeros(self.K, dtype=torch.float64, requires_grad=True) # Output bias
-        # Xavier initialization for all weights.
-        for i in range(4):
-            torch.nn.init.xavier_uniform_(self.W_all[i])
-            torch.nn.init.xavier_uniform_(self.U_all[i])
-            #torch.nn.init.xavier_uniform_(self.B[i])
-        torch.nn.init.xavier_uniform_(self.V)
-        #torch.nn.init.xavier_uniform_(self.C)
+    def init_weights(self, dim1, dim2):
+            W_all = torch.empty(4, dim1, dim2, dtype=torch.float64, requires_grad=True)
+            U_all = torch.empty(4, dim1, dim2, dtype=torch.float64, requires_grad=True)
+            V = torch.empty(dim2, dim1, dtype=torch.float64, requires_grad=True)
 
+            B = torch.zeros(4, dim1, dtype=torch.float64, requires_grad=True) # Gate biases
+            C = torch.zeros(dim2, dtype=torch.float64, requires_grad=True) # Output bias
+            for i in range(4):
+                torch.nn.init.xavier_uniform_(W_all[i])
+                torch.nn.init.xavier_uniform_(U_all[i])
+            torch.nn.init.xavier_uniform_(V)
 
+            return W_all, U_all, V, B, C
+        
 
     def forward(self, X, y, h0=None):
         '''
@@ -86,34 +88,44 @@ class LSTM:
         apply_sigmoid = torch.nn.Sigmoid()
         apply_softmax = torch.nn.Softmax(dim=1)
 
-        As, Fs, Is, Os, Cs, C_Hat_s, Hs, St = [], [], [], [], [], [], [], []
-
-        E = torch.zeros(4, 4, self.m, self.m, dtype=torch.float64)
-        for i in range(4):
-            E[i][i] = torch.eye(self.m)
+        
 
         hprev = h0
         cprev = torch.zeros(1, self.m, dtype=torch.float64)
-        for t in range(tau):
-            # at will have shape (4xmx1)
-            #print((torch.matmul(self.W_all, hprev) + torch.matmul(self.U_all, X[t].reshape(X[t].shape[0], 1))).shape)
-            #print(self.B.shape)
-            at = torch.matmul(self.W_all, hprev) + torch.matmul(self.U_all, X[t].reshape(X[t].shape[0], 1)) + self.B.unsqueeze(2) # Include biases
-            As.append(at.squeeze())
-            # Exa_t will have shape (4xmx1)
-            #NOTE: Might be wrong shape.
+        As, Fs, Is, Os, Cs, C_Hat_s, Hs, St = [None] * self.L, [None] * self.L, [None] * self.L, [None] * self.L, [None] * self.L, [None] * self.L, [None] * self.L, [None] * self.L
+        
+        current_X = X
+        for l in range(self.L): # for each layer
+            As[l], Fs[l], Is[l], Os[l], Cs[l], C_Hat_s[l], Hs[l], St[l] = [], [], [], [], [], [], [], []
+            for t in range(tau):
+                # at will have shape (4xmx1)
+                #print((torch.matmul(self.W_all, hprev) + torch.matmul(self.U_all, X[t].reshape(X[t].shape[0], 1))).shape)
+                #print(self.B.shape)
+                at = torch.matmul(self.W_all[l], hprev) + torch.matmul(self.U_all[l], current_X[t].reshape(current_X[t].shape[0], 1)) + self.B[l].unsqueeze(2) # Include biases
+                As[l].append(at.squeeze())
+                # Exa_t will have shape (4xmx1)
+                #NOTE: Might be wrong shape.
 
-            Fs.append(apply_sigmoid(at[0]).squeeze()) # forget gate.
-            Is.append(apply_sigmoid(at[1]).squeeze()) # input gate.
-            Os.append(apply_sigmoid(at[2]).squeeze()) # output gate.
-            C_Hat_s.append(apply_tanh(at[3]).squeeze()) # new memory cell.
-            cprev = Fs[t] * cprev + Is[t] * C_Hat_s[t]
-            Cs.append(cprev)
+                Fs[l].append(apply_sigmoid(at[0]).squeeze()) # forget gate.
+                Is[l].append(apply_sigmoid(at[1]).squeeze()) # input gate.
+                Os[l].append(apply_sigmoid(at[2]).squeeze()) # output gate.
+                C_Hat_s[l].append(apply_tanh(at[3]).squeeze()) # new memory cell.
+                cprev = Fs[l][t] * cprev + Is[l][t] * C_Hat_s[l][t]
+                Cs[l].append(cprev)
 
-            Hs.append(Os[t] * apply_tanh(Cs[t]))
-            hprev = Hs[t].reshape(self.m, 1)
-            #NEW:
-            St.append(torch.matmul(self.V, Hs[t].reshape(self.m, 1)) + self.C)
+                Hs[l].append(Os[l][t] * apply_tanh(Cs[l][t]))
+                hprev = Hs[l][t].reshape(self.m, 1)
+                #NEW:
+                St[l].append(torch.matmul(self.V[l], Hs[l][t].reshape(self.m, 1)) + self.C[l])
+
+            # input for next layer:
+            current_X = torch.stack(Hs[l], dim=0).squeeze()
+            # the first values for the next layer:
+            hprev = Hs[l][-1] 
+            cprev = Cs[l][-1]
+            #print(current_X.squeeze().shape)
+            #print(hprev.shape)
+            #print(cprev.shape)
 
         # Os = torch.matmul(Hs, self.W_o) + self.C
         Hs = torch.stack(Hs, dim=0)  # shape (tau, m, 1)
@@ -233,6 +245,7 @@ y_seq_indices = [char_to_ind[char] for char in y_seq]
 
 lstm = LSTM(X)
 
+print(lstm.W_all)
 #loss = lstm.forward(X_seq, y_seq_indices)
 #grads_W, grads_U, grads_V, grads_B, grads_C = lstm.backward(loss)
 #synth_text = lstm.synth_text("a", 25, ind_to_char, char_to_ind, rng)
