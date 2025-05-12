@@ -6,13 +6,21 @@ import torch
 import numpy as np
 from DataProcessing import *
 import copy
+from tqdm import tqdm
+from collections import defaultdict
 
 class LSTM:
     def __init__(self, X, test_size=0.2, m=[100, 50], n_layers=2, seq_len=25, lr=0.01, lam=0):
 
-        # The one-hot encoded data
+        # The one-hot encoded data.
         self.X = X
+
+        # The test/train split.
         self.test_size = test_size
+
+        # Mappings.
+        self.char2ind = defaultdict(int) # Default dict creates a new assignment (int = 1) if key does not exist.
+        self.ind2char = [] # Value of index in list will be a character.
 
         # The starting learning rate of the model.
         self.lr = lr
@@ -65,8 +73,6 @@ class LSTM:
         torch.nn.init.xavier_uniform_(self.V)
         self.C = torch.empty(self.K[0], dtype=torch.float64, requires_grad=True)
 
-
-
     def init_weights(self, m, K):
             W_all = torch.empty(4, m, m, dtype=torch.float64)
             U_all = torch.empty(4, m, K, dtype=torch.float64)
@@ -109,7 +115,7 @@ class LSTM:
         
         Hs_L = torch.zeros(tau, self.m[self.L - 1], dtype=torch.float64) # the last Hs, which we use for s and P calculation.
         current_X = X
-        print(current_X[0].shape)
+        #print(current_X[0].shape)
         for l in range(self.L): # for each layer
             Hs = torch.zeros(tau, self.m[l], dtype=torch.float64) # Hs for this layer
             for t in range(tau):
@@ -142,7 +148,7 @@ class LSTM:
             #print(current_X.squeeze().shape)
             #print(hprev.shape)
             #print(cprev.shape)
-            print("Layer " + str(l + 1) + " complete!")
+            #print("Layer " + str(l + 1) + " complete!")
             
 
         s = torch.matmul(self.V, Hs_L.reshape(self.m[-1], 1)) + self.C
@@ -157,7 +163,6 @@ class LSTM:
 
     def backward(self, loss):
         loss.backward()
-
     
     def synth_text(self, x0, n, ind_to_char, char_to_ind, rng, h0 = None):
         '''
@@ -218,26 +223,58 @@ class LSTM:
 
         return synth_text
 
+
     def fit(self, epochs=5):
+        '''
+        Computes the gradient descent and trains the model using a number of epochs.
+
+            NOTE: As of now, the X and Y one-hot encoded matrices are computed in Numpy,
+            and the y-vector is computed using torch. Might want to convert the Numpy
+            calculations to torch in the future to be consistent.
+        :param epochs:
+        :return:
+        '''
         n_batches = len(self.X) // self.seq_len  # number of full batches
         trimmed_len = n_batches * self.seq_len
         X_trimmed = X[:trimmed_len]  # trim off the remainder, OBS: Losing some characters, maybe not necessary!
         Y_trimmed = X[1:trimmed_len + 1]
+        y_trimmed = []
+        for vec in self.X:
+            ind = np.where(vec==1.0)[0] # adds the integer index of where the one-hot is 1.0.
+            y_trimmed.append(int(ind.item()))
+        y_trimmed = torch.tensor(y_trimmed[1:n_batches*self.seq_len+1])
         batches_X = X_trimmed.reshape(n_batches, self.seq_len, * X.shape[1:])
         batches_Y = Y_trimmed.reshape(n_batches, self.seq_len, * X.shape[1:])
+        batches_y = y_trimmed.reshape(n_batches, self.seq_len)
 
         assert np.allclose(batches_Y[0, 0], batches_X[0, 1]), f"Data and labels are shifted wrong: Y: {batches_Y[0, 0]} != X: {batches_X[0, 1]}"
-
-        print(batches_X.shape)
+        
+        smooth_loss = 0
+        t = 1
         for _ in range(epochs):
-            for i in range(batches_X.shape[0]):
-                loss = self.forward(batches_X[i], batches_Y[i])
-                grads_W, grads_U = self.backward(loss)
+            for i in tqdm(range(batches_X.shape[0])):
+                loss = self.forward(batches_X[i], batches_y[i])
+                self.backward(loss)
 
+                smooth_loss = 0.999 * smooth_loss + 0.001 * loss.item() if t > 1 else loss.item()
+                
                 # Updates the weights
-                self.W_all -= grads_W * self.lr
-                self.U_all -= grads_U * self.lr
-
+                with torch.no_grad():
+                    for l in range(self.L):
+                        self.W_all[l] -= self.W_all[l].grad * self.lr
+                        self.U_all[l] -= self.U_all[l].grad * self.lr
+                        self.B[l]     -= self.B[l].grad * self.lr
+                    self.V -= self.V.grad * self.lr
+                    self.C -= self.C.grad * self.lr
+                if i % 1000 == 0:
+                     print("\n----------------------")
+                     print("Gradient magnitudes: " + str(self.W_all[l].grad.norm().item()))
+                     print("LOSS: " + str(smooth_loss))
+                     print(self.synth_text("a", 25, ind2char, char2ind, rng))
+                     print("----------------------\n")
+                
+                t += 1 # used for smooth loss
+           
 
 
 
@@ -248,25 +285,27 @@ BitGen = type(rng.bit_generator)
 seed = 1
 rng.bit_generator.state = BitGen(seed).state
 
-
 data, unique_chars = ReadData()
-char_to_ind, ind_to_char = GetDicts(unique_chars)
-X = ConvertToOneHot(data, char_to_ind)
+char2ind, ind2char = GetDicts(unique_chars)
+X = ConvertToOneHot(data, char2ind)
 
 X_seq = X[0:25]
 y_seq = data[1:26] # not one-hot encoded.
-y_seq_indices = [char_to_ind[char] for char in y_seq]
+y_seq_indices = [char2ind[char] for char in y_seq]
 
-lstm = LSTM(X, m=[100, 50, 40], n_layers=3)
+lstm = LSTM(X, m=[100, 50], n_layers=2)
+
 
 #print(lstm.W_all)
-#loss = lstm.forward(X_seq, y_seq_indices)
-#grads = lstm.backward(loss)
-#print(lstm.C.grad)
-#print(lstm.W_all[2].grad[0])
-#print(torch.any(lstm.U_all[0].grad != 0))
+"""
+loss = lstm.forward(X_seq, y_seq_indices)
+grads = lstm.backward(loss)
+print(lstm.C.grad)
+print(lstm.W_all[2].grad[0])
+print(torch.any(lstm.U_all[0].grad != 0))
+"""
+#synth_text = lstm.synth_text("a", 25, ind2char, char2ind, rng)
+#print(synth_text)
+lstm.fit()
 
-synth_text = lstm.synth_text("a", 25, ind_to_char, char_to_ind, rng)
-print(synth_text)
-#lstm.fit()
 
