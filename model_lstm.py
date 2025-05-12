@@ -109,6 +109,7 @@ class LSTM:
         
         Hs_L = torch.zeros(tau, self.m[self.L - 1], dtype=torch.float64) # the last Hs, which we use for s and P calculation.
         current_X = X
+        print(current_X[0].shape)
         for l in range(self.L): # for each layer
             Hs = torch.zeros(tau, self.m[l], dtype=torch.float64) # Hs for this layer
             for t in range(tau):
@@ -116,9 +117,7 @@ class LSTM:
                 
 
                 at = torch.matmul(self.W_all[l], hprev) + torch.matmul(self.U_all[l], current_X[t].reshape(current_X[t].shape[0], 1)) + self.B[l].unsqueeze(2) # Include biases
-                #As[l].append(at.squeeze())
-                # Exa_t will have shape (4xmx1)
-                #NOTE: Might be wrong shape.
+            
 
                 f_t = apply_sigmoid(at[0]).squeeze() # forget gate.
                 i_t = apply_sigmoid(at[1]).squeeze() # input gate.
@@ -168,51 +167,73 @@ class LSTM:
         :param rng: the previously initialized rng
         :return:
         '''
-
+        #print(self.W_all[0][0])
+        #print(self.U_all[0][0])
+        #print(self.B[0])
         if h0 is None:
-            h0 = torch.empty(self.m, 1, dtype=torch.float64) # Shape?
+            h0 = torch.empty(self.m[0], 1, dtype=torch.float64) # shape (m, 1).
 
-        # Initliazing the first hidden layer computaions.
-        ht = h0
-        ct = torch.zeros(1, self.m, dtype=torch.float64)
-
-        ## give informative names to these torch classes
         apply_tanh = torch.nn.Tanh()
         apply_sigmoid = torch.nn.Sigmoid()
-        apply_softmax = torch.nn.Softmax(dim = 0)
+        apply_softmax = torch.nn.Softmax(dim=1)
 
-        hprev = ht
-        cprev = ct
-        x = torch.zeros(1, self.K, dtype=torch.float64)
-        x[0, char_to_ind[x0]] = 1
+        
+        hprev = h0
+        cprev = torch.zeros(1, self.m[0], dtype=torch.float64)
+
+
+        x = torch.zeros(self.K[0], dtype=torch.float64)
+        x[char_to_ind[x0]] = 1
+
         synth_text = x0
-        for t in range(n):
-            # at will have shape (4xmx1)
-            at = torch.matmul(self.W_all, hprev) + torch.matmul(self.U_all, x.reshape(x.shape[1], 1)) + self.B.unsqueeze(2)
-            #As.append(at.squeeze())
-            # Exa_t will have shape (4xmx1)
-            #NOTE: Might be wrong shape.    
 
-            f_t = apply_sigmoid(at[0]).squeeze() # forget gate.
-            i_t = apply_sigmoid(at[1]).squeeze() # input gate.
-            o_t = apply_sigmoid(at[2]).squeeze() # output gate.
-            c_hat_t = apply_tanh(at[3]).squeeze() # new memory cell.
-            
-            cprev = f_t * cprev + i_t * c_hat_t
-            hprev = (o_t * apply_tanh(cprev)).reshape(self.m, 1)
+        # initialize once, outside time loop
+        h = [h0] + [torch.zeros(self.m[i], 1, dtype=torch.float64) for i in range(1, self.L)]
+        c = [torch.zeros_like(h[i]) for i in range(self.L)]
 
-            s_t = torch.matmul(self.V, hprev.reshape(self.m, 1)) + self.C.unsqueeze(1)
+        for _ in range(n):  # for each time step
+            #x = one-hot vector of previous character
+            for l in range(self.L):
+                #print((self.W_all[l] @ h[l]).shape)
+                #print(((self.U_all[l] @ x).unsqueeze(2)).shape)
+                #print("x shape: " + str(x.shape))
+                at = self.W_all[l] @ h[l] + (self.U_all[l] @ x).unsqueeze(2) + self.B[l].unsqueeze(2)
+
+                a = at.view(4, self.m[l], 1)
+                f_t = torch.sigmoid(a[0])
+                i_t = torch.sigmoid(a[1])
+                o_t = torch.sigmoid(a[2])
+                c_hat = torch.tanh(a[3])
+
+                c[l] = f_t * c[l] + i_t * c_hat
+                h[l] = o_t * torch.tanh(c[l])
+
+                x = h[l].squeeze()  # input for next layer
+
+                # the first values for the next layer:
+                if l < self.L - 1: 
+                    hprev = torch.empty(self.m[l + 1], 1, dtype=torch.float64) # new h0
+                    cprev = torch.zeros(1, self.m[l + 1], dtype=torch.float64) # new c0
+                #print(current_X.squeeze().shape)
+                #print(hprev.shape)
+                #print(cprev.shape)
+                print("Layer " + str(l + 1) + " complete!")
+                    
+
+            s_t = self.V @ h[-1] + self.C.unsqueeze(1)
             p_t = apply_softmax(s_t)
 
-            # sample (randomly from prob. dist. p_t) and add to synthesized text:
+            # sample (randomly from prob. dist. p_t), don't use in synthesized text until last layer.
             cp = np.cumsum(p_t.detach().numpy(), axis=0)
             a = rng.uniform(size=1)
-            ii = np.argmax(cp - a > 0) 
+            ii = np.argmax(cp - a > 0)
 
-            x = torch.zeros(1, self.K, dtype=torch.float64)
-            x[0, ii] = 1
-            synth_text += ind_to_char[ii]
+            x = torch.zeros(self.K[0], dtype=torch.float64)
+            x[ii] = 1
+            synth_text += ind_to_char[ii] # only synthesize in last layer.
 
+            #hprev = torch.empty(self.m[0], 1, dtype=torch.float64) # new h0 for next layer 1
+            #cprev = torch.zeros(1, self.m[0], dtype=torch.float64) # new c0
         return synth_text
 
     def fit(self, epochs=5):
@@ -257,13 +278,13 @@ y_seq_indices = [char_to_ind[char] for char in y_seq]
 lstm = LSTM(X, m=[100, 50, 40], n_layers=3)
 
 #print(lstm.W_all)
-loss = lstm.forward(X_seq, y_seq_indices)
-grads = lstm.backward(loss)
+#loss = lstm.forward(X_seq, y_seq_indices)
+#grads = lstm.backward(loss)
 #print(lstm.C.grad)
-print(lstm.W_all[2].grad[0])
+#print(lstm.W_all[2].grad[0])
 #print(torch.any(lstm.U_all[0].grad != 0))
 
-#synth_text = lstm.synth_text("a", 25, ind_to_char, char_to_ind, rng)
-#print(synth_text)
+synth_text = lstm.synth_text("a", 25, ind_to_char, char_to_ind, rng)
+print(synth_text)
 #lstm.fit()
 
