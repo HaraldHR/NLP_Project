@@ -8,10 +8,11 @@ from DataProcessing import *
 import copy
 
 class LSTM:
-    def __init__(self, X, m=100, n_layers=2, lr=0.01, lam=0):
+    def __init__(self, X, test_size=0.2, m=100, n_layers=2, seq_len=25, lr=0.01, lam=0):
 
         # The one-hot encoded data
         self.X = X
+        self.test_size = test_size
 
         # The starting learning rate of the model.
         self.lr = lr
@@ -28,6 +29,9 @@ class LSTM:
         # The dimension of the input and output.
         self.K = X.shape[1]
 
+        # The length of each sequence being inputted to the backprop.
+        self.seq_len = seq_len
+
         # Initializing trainable parameters
         self.W_all = None # Contains a vector with all W weight matrices
         self.U_all = None # Contains a vector will all U weight matrices.
@@ -40,12 +44,6 @@ class LSTM:
         self.memory_vec = None
         
         self.init_model()
-
-
-
-    def data(self):
-        t = torch.tensor((2,3))
-        print(t)
 
 
 
@@ -70,21 +68,18 @@ class LSTM:
     def forward(self, X, y, h0=None):
         '''
         Computes the forward pass of the LSTM model to make a prediction.
-        :param X: the encoded input vector.
-        :param y: the encoded target vector.
-        :return:
+        :param X: the BATCH encoded input vector.
+        :param y: the BATCH encoded target vector, NOT one-hot-encoded.
+        :return: loss
         '''
+        if h0 is None:
+            h0 = torch.empty(self.m, 1, dtype=torch.float64) # shape (m, 1).
 
         X = torch.from_numpy(X)
-        if h0 is None:
-            h0 = torch.empty(self.m, 1, dtype=torch.float64) # Shape?
 
-        # Initliazing the first hidden layer computaions.
-        tau = X.shape[0]
-        ht = h0
-        ct = torch.zeros(1, self.m, dtype=torch.float64)
+        assert X.shape[0] == self.seq_len, f"X shape: {X.shape} != seq_len:{self.seq_len}"  # for catching errors.
+        tau = self.seq_len
 
-        ## give informative names to these torch classes
         apply_tanh = torch.nn.Tanh()
         apply_sigmoid = torch.nn.Sigmoid()
         apply_softmax = torch.nn.Softmax(dim=1)
@@ -95,8 +90,8 @@ class LSTM:
         for i in range(4):
             E[i][i] = torch.eye(self.m)
 
-        hprev = ht
-        cprev = ct
+        hprev = h0
+        cprev = torch.zeros(1, self.m, dtype=torch.float64)
         for t in range(tau):
             # at will have shape (4xmx1)
             at = torch.matmul(self.W_all, hprev) + torch.matmul(self.U_all, X[t].reshape(X[t].shape[0], 1))
@@ -108,10 +103,8 @@ class LSTM:
             Is.append(apply_sigmoid(at[1]).squeeze()) # input gate.
             Os.append(apply_sigmoid(at[2]).squeeze()) # output gate.
             C_Hat_s.append(apply_tanh(at[3]).squeeze()) # new memory cell.
-            if t < 1:
-                Cs.append(Fs[t] * cprev + Is[t] * C_Hat_s[t])
-            else:
-                Cs.append(Fs[t] * Cs[t - 1] + Is[t] * C_Hat_s[t]) # final memory cell.
+            cprev = Fs[t] * cprev + Is[t] * C_Hat_s[t]
+            Cs.append(cprev)
 
             Hs.append(Os[t] * apply_tanh(Cs[t]))
             hprev = Hs[t].reshape(self.m, 1)
@@ -127,15 +120,18 @@ class LSTM:
         C_Hat_s = torch.stack(C_Hat_s, dim=0)
         St = torch.stack(St, dim=0)
         Cs = torch.stack(Cs, dim=0)
-        P = apply_softmax(St)
+        P = apply_softmax(St).squeeze()
         print(P.shape)
         # compute the loss
         loss = torch.mean(-torch.log(P[np.arange(tau), y]))  # use this line if storing inputs row-wise
         return loss
 
+
+
     def backward(self, loss):
         loss.backward()
-        return (self.W_all.grad, self.U_all.grad) # unsure if correct.
+        return (self.W_all.grad, self.U_all.grad, self.V.grad) # unsure if correct.
+
     
     def synth_text(self, x0, n, ind_to_char, char_to_ind, rng, h0 = None):
         '''
@@ -162,7 +158,6 @@ class LSTM:
         cprev = ct
         x = torch.zeros(1, self.K, dtype=torch.float64)
         x[0, char_to_ind[x0]] = 1
-        print(x.shape)
         synth_text = ""
         for t in range(n):
             # at will have shape (4xmx1)
@@ -193,15 +188,35 @@ class LSTM:
 
         return synth_text
 
-        
-         
+    def fit(self, epochs=5):
+        n_batches = len(self.X) // self.seq_len  # number of full batches
+        trimmed_len = n_batches * self.seq_len
+        X_trimmed = X[:trimmed_len]  # trim off the remainder, OBS: Losing some characters, maybe not necessary!
+        Y_trimmed = X[1:trimmed_len + 1]
+        batches_X = X_trimmed.reshape(n_batches, self.seq_len, * X.shape[1:])
+        batches_Y = Y_trimmed.reshape(n_batches, self.seq_len, * X.shape[1:])
+
+        assert np.allclose(batches_Y[0, 0], batches_X[0, 1]), f"Data and labels are shifted wrong: Y: {batches_Y[0, 0]} != X: {batches_X[0, 1]}"
+
+        print(batches_X.shape)
+        for _ in range(epochs):
+            for i in range(batches_X.shape[0]):
+                loss = self.forward(batches_X[i], batches_Y[i])
+                grads_W, grads_U = self.backward(loss)
+
+                # Updates the weights
+                self.W_all -= grads_W * self.lr
+                self.U_all -= grads_U * self.lr
+
+
+
+
 rng = np.random.default_rng()
 # get the BitGenerator used by default
 BitGen = type(rng.bit_generator)
 # use the state from a fresh bit generator
 seed = 1
 rng.bit_generator.state = BitGen(seed).state
-
 
 
 data, unique_chars = ReadData()
@@ -215,7 +230,9 @@ y_seq_indices = [char_to_ind[char] for char in y_seq]
 lstm = LSTM(X)
 
 loss = lstm.forward(X_seq, y_seq_indices)
-#grads_W, grads_U = lstm.backward(loss)
+grads_W, grads_U, grads_V = lstm.backward(loss)
 #print(grads_W[0])
 #lstm.synth_text("a", 25, ind_to_char, char_to_ind, rng)
+
+#lstm.fit()
 
