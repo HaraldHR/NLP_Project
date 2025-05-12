@@ -105,34 +105,37 @@ class LSTM:
 
         hprev = h0
         cprev = torch.zeros(1, self.m[0], dtype=torch.float64)
-        As, Fs, Is, Os, Cs, C_Hat_s, Hs, St = [None] * self.L, [None] * self.L, [None] * self.L, [None] * self.L, [None] * self.L, [None] * self.L, [None] * self.L, []
+
         
+        Hs_L = torch.zeros(tau, self.m[self.L - 1], dtype=torch.float64) # the last Hs, which we use for s and P calculation.
         current_X = X
         for l in range(self.L): # for each layer
-            As[l], Fs[l], Is[l], Os[l], Cs[l], C_Hat_s[l], Hs[l] = [], [], [], [], [], [], []
-            
+            Hs = torch.zeros(tau, self.m[l], dtype=torch.float64) # Hs for this layer
             for t in range(tau):
                 # at will have shape (4 x m x 1)
                 
 
                 at = torch.matmul(self.W_all[l], hprev) + torch.matmul(self.U_all[l], current_X[t].reshape(current_X[t].shape[0], 1)) + self.B[l].unsqueeze(2) # Include biases
-                As[l].append(at.squeeze())
+                #As[l].append(at.squeeze())
                 # Exa_t will have shape (4xmx1)
                 #NOTE: Might be wrong shape.
 
-                Fs[l].append(apply_sigmoid(at[0]).squeeze()) # forget gate.
-                Is[l].append(apply_sigmoid(at[1]).squeeze()) # input gate.
-                Os[l].append(apply_sigmoid(at[2]).squeeze()) # output gate.
-                C_Hat_s[l].append(apply_tanh(at[3]).squeeze()) # new memory cell.
-                cprev = Fs[l][t] * cprev + Is[l][t] * C_Hat_s[l][t]
-                Cs[l].append(cprev)
+                f_t = apply_sigmoid(at[0]).squeeze() # forget gate.
+                i_t = apply_sigmoid(at[1]).squeeze() # input gate.
+                o_t = apply_sigmoid(at[2]).squeeze() # output gate.
+                c_hat_t = apply_tanh(at[3]).squeeze() # new memory cell.
+                cprev = f_t * cprev + i_t * c_hat_t
 
-                Hs[l].append(Os[l][t] * apply_tanh(Cs[l][t]))
-                hprev = Hs[l][t].reshape(self.m[l], 1)
+                h_t = o_t * apply_tanh(cprev)
+                Hs[t] = h_t
+                
+                if l == self.L - 1: Hs_L = Hs[t]
+                
+                hprev = h_t.reshape(self.m[l], 1)
                 
 
             # input for next layer:
-            current_X = torch.stack(Hs[l], dim=0).squeeze()
+            current_X = Hs.squeeze()
             # the first values for the next layer:
             if l < self.L - 1: 
                 hprev = torch.empty(self.m[l + 1], 1, dtype=torch.float64) # new h0
@@ -141,8 +144,9 @@ class LSTM:
             #print(hprev.shape)
             #print(cprev.shape)
             print("Layer " + str(l + 1) + " complete!")
+            
 
-        s = torch.matmul(self.V, Hs[-1][-1].reshape(self.m[-1], 1)) + self.C
+        s = torch.matmul(self.V, Hs_L.reshape(self.m[-1], 1)) + self.C
         #print(Hs[-1][-1].reshape(self.m[-1], 1).shape)
         P = apply_softmax(s).squeeze()
 
@@ -256,7 +260,7 @@ lstm = LSTM(X, m=[100, 50, 40], n_layers=3)
 loss = lstm.forward(X_seq, y_seq_indices)
 grads = lstm.backward(loss)
 #print(lstm.C.grad)
-print(lstm.B[2].grad)
+print(lstm.W_all[2].grad[0])
 #print(torch.any(lstm.U_all[0].grad != 0))
 
 #synth_text = lstm.synth_text("a", 25, ind_to_char, char_to_ind, rng)
