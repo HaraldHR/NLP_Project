@@ -38,7 +38,6 @@ class LSTM:
         self.V = None # output weight matrix
         self.B = None
         self.C = None
-        self.D = None
 
         # Dynamic parameters.
         self.memory_vec = None
@@ -56,12 +55,15 @@ class LSTM:
         self.U_all = torch.empty(4, self.m, self.K, dtype=torch.float64, requires_grad=True)
         self.V = torch.empty(self.K, self.m, dtype=torch.float64, requires_grad=True)
 
-
+        self.B = torch.zeros(4, self.m, dtype=torch.float64, requires_grad=True) # Gate biases
+        self.C = torch.zeros(self.K, dtype=torch.float64, requires_grad=True) # Output bias
         # Xavier initialization for all weights.
         for i in range(4):
             torch.nn.init.xavier_uniform_(self.W_all[i])
             torch.nn.init.xavier_uniform_(self.U_all[i])
+            #torch.nn.init.xavier_uniform_(self.B[i])
         torch.nn.init.xavier_uniform_(self.V)
+        #torch.nn.init.xavier_uniform_(self.C)
 
 
 
@@ -94,7 +96,9 @@ class LSTM:
         cprev = torch.zeros(1, self.m, dtype=torch.float64)
         for t in range(tau):
             # at will have shape (4xmx1)
-            at = torch.matmul(self.W_all, hprev) + torch.matmul(self.U_all, X[t].reshape(X[t].shape[0], 1))
+            #print((torch.matmul(self.W_all, hprev) + torch.matmul(self.U_all, X[t].reshape(X[t].shape[0], 1))).shape)
+            #print(self.B.shape)
+            at = torch.matmul(self.W_all, hprev) + torch.matmul(self.U_all, X[t].reshape(X[t].shape[0], 1)) + self.B.unsqueeze(2) # Include biases
             As.append(at.squeeze())
             # Exa_t will have shape (4xmx1)
             #NOTE: Might be wrong shape.
@@ -109,7 +113,7 @@ class LSTM:
             Hs.append(Os[t] * apply_tanh(Cs[t]))
             hprev = Hs[t].reshape(self.m, 1)
             #NEW:
-            St.append(torch.matmul(self.V, Hs[t].reshape(self.m, 1)))# + self.D
+            St.append(torch.matmul(self.V, Hs[t].reshape(self.m, 1)) + self.C)
 
         # Os = torch.matmul(Hs, self.W_o) + self.C
         Hs = torch.stack(Hs, dim=0)  # shape (tau, m, 1)
@@ -121,7 +125,7 @@ class LSTM:
         St = torch.stack(St, dim=0)
         Cs = torch.stack(Cs, dim=0)
         P = apply_softmax(St).squeeze()
-        print(P.shape)
+
         # compute the loss
         loss = torch.mean(-torch.log(P[np.arange(tau), y]))  # use this line if storing inputs row-wise
         return loss
@@ -130,7 +134,7 @@ class LSTM:
 
     def backward(self, loss):
         loss.backward()
-        return (self.W_all.grad, self.U_all.grad, self.V.grad) # unsure if correct.
+        return self.W_all.grad, self.U_all.grad, self.V.grad, self.B.grad, self.C.grad
 
     
     def synth_text(self, x0, n, ind_to_char, char_to_ind, rng, h0 = None):
@@ -161,7 +165,7 @@ class LSTM:
         synth_text = x0
         for t in range(n):
             # at will have shape (4xmx1)
-            at = torch.matmul(self.W_all, hprev) + torch.matmul(self.U_all, x.reshape(x.shape[1], 1))
+            at = torch.matmul(self.W_all, hprev) + torch.matmul(self.U_all, x.reshape(x.shape[1], 1)) + self.B.unsqueeze(2)
             #As.append(at.squeeze())
             # Exa_t will have shape (4xmx1)
             #NOTE: Might be wrong shape.    
@@ -174,14 +178,13 @@ class LSTM:
             cprev = f_t * cprev + i_t * c_hat_t
             hprev = (o_t * apply_tanh(cprev)).reshape(self.m, 1)
 
-            s_t = torch.matmul(self.V, hprev.reshape(self.m, 1))# + self.D
+            s_t = torch.matmul(self.V, hprev.reshape(self.m, 1)) + self.C.unsqueeze(1)
             p_t = apply_softmax(s_t)
 
-            # sample (randomly from prob. dist. p_t) and add to o:
+            # sample (randomly from prob. dist. p_t) and add to synthesized text:
             cp = np.cumsum(p_t.detach().numpy(), axis=0)
             a = rng.uniform(size=1)
             ii = np.argmax(cp - a > 0) 
-
 
             x = torch.zeros(1, self.K, dtype=torch.float64)
             x[0, ii] = 1
@@ -231,9 +234,8 @@ y_seq_indices = [char_to_ind[char] for char in y_seq]
 lstm = LSTM(X)
 
 #loss = lstm.forward(X_seq, y_seq_indices)
-#grads_W, grads_U, grads_V = lstm.backward(loss)
-#print(grads_W[0])
-synth_text = lstm.synth_text("a", 25, ind_to_char, char_to_ind, rng)
-print(synth_text)
+#grads_W, grads_U, grads_V, grads_B, grads_C = lstm.backward(loss)
+#synth_text = lstm.synth_text("a", 25, ind_to_char, char_to_ind, rng)
+#print(synth_text)
 #lstm.fit()
 
