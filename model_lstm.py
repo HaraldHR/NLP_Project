@@ -6,13 +6,21 @@ import torch
 import numpy as np
 from DataProcessing import *
 import copy
+from tqdm import tqdm
+from collections import defaultdict
 
 class LSTM:
     def __init__(self, X, test_size=0.2, m=100, n_layers=2, seq_len=25, lr=0.01, lam=0):
 
-        # The one-hot encoded data
+        # The one-hot encoded data.
         self.X = X
+
+        # The test/train split.
         self.test_size = test_size
+
+        # Mappings.
+        self.char2ind = defaultdict(int) # Default dict creates a new assignment (int = 1) if key does not exist.
+        self.ind2char = [] # Value of index in list will be a character.
 
         # The starting learning rate of the model.
         self.lr = lr
@@ -65,6 +73,63 @@ class LSTM:
         torch.nn.init.xavier_uniform_(self.V)
         #torch.nn.init.xavier_uniform_(self.C)
 
+    def synth_text(self, x0, n, rng=None, h0=None):
+        '''
+        Computes the forward pass of the LSTM model to make a prediction.
+        :param x0: the first character
+        :param n: length of the synthesized text
+        :param rng: the previously initialized rng
+        :return:
+        '''
+        if h0 is None:
+            h0 = torch.empty(self.m, 1, dtype=torch.float64)  # Shape?
+        if rng is None:
+            rng = np.random.default_rng()
+
+        # Initliazing the first hidden layer computaions.
+        ht = h0
+        ct = torch.zeros(1, self.m, dtype=torch.float64)
+
+        ## give informative names to these torch classes
+        apply_tanh = torch.nn.Tanh()
+        apply_sigmoid = torch.nn.Sigmoid()
+        apply_softmax = torch.nn.Softmax(dim=0)
+
+        hprev = ht
+        cprev = ct
+        x = torch.zeros(1, self.K, dtype=torch.float64)
+        x[0, self.char2ind[x0]] = 1
+        synth_text = x0
+        for t in range(n):
+            # at will have shape (4xmx1)
+            at = torch.matmul(self.W_all, hprev) + torch.matmul(self.U_all,
+                                                                x.reshape(x.shape[1], 1)) + self.B.unsqueeze(2)
+            # As.append(at.squeeze())
+            # Exa_t will have shape (4xmx1)
+            # NOTE: Might be wrong shape.
+
+            f_t = apply_sigmoid(at[0]).squeeze()  # forget gate.
+            i_t = apply_sigmoid(at[1]).squeeze()  # input gate.
+            o_t = apply_sigmoid(at[2]).squeeze()  # output gate.
+            c_hat_t = apply_tanh(at[3]).squeeze()  # new memory cell.
+
+            cprev = f_t * cprev + i_t * c_hat_t
+            hprev = (o_t * apply_tanh(cprev)).reshape(self.m, 1)
+
+            s_t = torch.matmul(self.V, hprev.reshape(self.m, 1)) + self.C.unsqueeze(1)
+            p_t = apply_softmax(s_t)
+
+            # sample (randomly from prob. dist. p_t) and add to synthesized text:
+            cp = np.cumsum(p_t.detach().numpy(), axis=0)
+            a = rng.uniform(size=1)
+            ii = np.argmax(cp - a > 0)
+
+            x = torch.zeros(1, self.K, dtype=torch.float64)
+            x[0, ii] = 1
+            synth_text += self.ind2char[ii]
+
+        return synth_text
+
 
 
     def forward(self, X, y, h0=None):
@@ -116,14 +181,14 @@ class LSTM:
             St.append(torch.matmul(self.V, Hs[t].reshape(self.m, 1)) + self.C)
 
         # Os = torch.matmul(Hs, self.W_o) + self.C
-        Hs = torch.stack(Hs, dim=0)  # shape (tau, m, 1)
-        As = torch.stack(As, dim=0)
-        Fs = torch.stack(Fs, dim=0)
-        Is = torch.stack(Is, dim=0)
-        Os = torch.stack(Os, dim=0)
-        C_Hat_s = torch.stack(C_Hat_s, dim=0)
+        # Hs = torch.stack(Hs, dim=0)  # shape (tau, m, 1)
+        # As = torch.stack(As, dim=0)
+        # Fs = torch.stack(Fs, dim=0)
+        # Is = torch.stack(Is, dim=0)
+        # Os = torch.stack(Os, dim=0)
+        # C_Hat_s = torch.stack(C_Hat_s, dim=0)
         St = torch.stack(St, dim=0)
-        Cs = torch.stack(Cs, dim=0)
+        # Cs = torch.stack(Cs, dim=0)
         P = apply_softmax(St).squeeze()
 
         # compute the loss
@@ -136,82 +201,45 @@ class LSTM:
         loss.backward()
         return self.W_all.grad, self.U_all.grad, self.V.grad, self.B.grad, self.C.grad
 
-    
-    def synth_text(self, x0, n, ind_to_char, char_to_ind, rng, h0 = None):
-        '''
-        Computes the forward pass of the LSTM model to make a prediction.
-        :param x0: the first character
-        :param n: length of the synthesized text
-        :param rng: the previously initialized rng
-        :return:
-        '''
 
-        if h0 is None:
-            h0 = torch.empty(self.m, 1, dtype=torch.float64) # Shape?
-
-        # Initliazing the first hidden layer computaions.
-        ht = h0
-        ct = torch.zeros(1, self.m, dtype=torch.float64)
-
-        ## give informative names to these torch classes
-        apply_tanh = torch.nn.Tanh()
-        apply_sigmoid = torch.nn.Sigmoid()
-        apply_softmax = torch.nn.Softmax(dim = 0)
-
-        hprev = ht
-        cprev = ct
-        x = torch.zeros(1, self.K, dtype=torch.float64)
-        x[0, char_to_ind[x0]] = 1
-        synth_text = x0
-        for t in range(n):
-            # at will have shape (4xmx1)
-            at = torch.matmul(self.W_all, hprev) + torch.matmul(self.U_all, x.reshape(x.shape[1], 1)) + self.B.unsqueeze(2)
-            #As.append(at.squeeze())
-            # Exa_t will have shape (4xmx1)
-            #NOTE: Might be wrong shape.    
-
-            f_t = apply_sigmoid(at[0]).squeeze() # forget gate.
-            i_t = apply_sigmoid(at[1]).squeeze() # input gate.
-            o_t = apply_sigmoid(at[2]).squeeze() # output gate.
-            c_hat_t = apply_tanh(at[3]).squeeze() # new memory cell.
-            
-            cprev = f_t * cprev + i_t * c_hat_t
-            hprev = (o_t * apply_tanh(cprev)).reshape(self.m, 1)
-
-            s_t = torch.matmul(self.V, hprev.reshape(self.m, 1)) + self.C.unsqueeze(1)
-            p_t = apply_softmax(s_t)
-
-            # sample (randomly from prob. dist. p_t) and add to synthesized text:
-            cp = np.cumsum(p_t.detach().numpy(), axis=0)
-            a = rng.uniform(size=1)
-            ii = np.argmax(cp - a > 0) 
-
-            x = torch.zeros(1, self.K, dtype=torch.float64)
-            x[0, ii] = 1
-            synth_text += ind_to_char[ii]
-
-        return synth_text
 
     def fit(self, epochs=5):
+        '''
+        Computes the gradient descent and trains the model using a number of epochs.
+
+            NOTE: As of now, the X and Y one-hot encoded matrices are computed in Numpy,
+            and the y-vector is computed using torch. Might want to convert the Numpy
+            calculations to torch in the future to be consistent.
+        :param epochs:
+        :return:
+        '''
         n_batches = len(self.X) // self.seq_len  # number of full batches
         trimmed_len = n_batches * self.seq_len
         X_trimmed = X[:trimmed_len]  # trim off the remainder, OBS: Losing some characters, maybe not necessary!
         Y_trimmed = X[1:trimmed_len + 1]
+        y_trimmed = []
+        for vec in self.X:
+            ind = np.where(vec==1.0)[0] # adds the integer index of where the one-hot is 1.0.
+            y_trimmed.append(int(ind.item()))
+        y_trimmed = torch.tensor(y_trimmed[1:n_batches*self.seq_len+1])
         batches_X = X_trimmed.reshape(n_batches, self.seq_len, * X.shape[1:])
         batches_Y = Y_trimmed.reshape(n_batches, self.seq_len, * X.shape[1:])
+        batches_y = y_trimmed.reshape(n_batches, self.seq_len)
 
         assert np.allclose(batches_Y[0, 0], batches_X[0, 1]), f"Data and labels are shifted wrong: Y: {batches_Y[0, 0]} != X: {batches_X[0, 1]}"
-
-        print(batches_X.shape)
         for _ in range(epochs):
-            for i in range(batches_X.shape[0]):
-                loss = self.forward(batches_X[i], batches_Y[i])
-                grads_W, grads_U = self.backward(loss)
+            for i in tqdm(range(batches_X.shape[0])):
+                loss = self.forward(batches_X[i], batches_y[i])
+                grads_W, grads_U, grad_V, grads_B, grads_C = self.backward(loss)
 
                 # Updates the weights
-                self.W_all -= grads_W * self.lr
-                self.U_all -= grads_U * self.lr
-
+                with torch.no_grad():
+                    self.W_all -= grads_W * self.lr
+                    self.U_all -= grads_U * self.lr
+                    self.V     -= grad_V * self.lr
+                    self.B     -= grads_B * self.lr
+                    self.C     -= grads_C * self.lr
+            self.synth_text("a", 25)
 
 
 
@@ -222,20 +250,25 @@ BitGen = type(rng.bit_generator)
 seed = 1
 rng.bit_generator.state = BitGen(seed).state
 
-
 data, unique_chars = ReadData()
-char_to_ind, ind_to_char = GetDicts(unique_chars)
-X = ConvertToOneHot(data, char_to_ind)
+char2ind, ind2char = GetDicts(unique_chars)
+X = ConvertToOneHot(data, char2ind)
 
 X_seq = X[0:25]
 y_seq = data[1:26] # not one-hot encoded.
-y_seq_indices = [char_to_ind[char] for char in y_seq]
+y_seq_indices = [char2ind[char] for char in y_seq]
 
 lstm = LSTM(X)
 
-#loss = lstm.forward(X_seq, y_seq_indices)
+lstm.ind2char = ind2char
+lstm.char2ind = char2ind
+
+loss = lstm.forward(X_seq, y_seq_indices)
 #grads_W, grads_U, grads_V, grads_B, grads_C = lstm.backward(loss)
-#synth_text = lstm.synth_text("a", 25, ind_to_char, char_to_ind, rng)
-#print(synth_text)
-#lstm.fit()
+synth_text = lstm.synth_text("a", 25, rng)
+print(synth_text)
+lstm.fit()
+s_text = lstm.synth_text("a", 25, rng)
+
+print(s_text)
 
