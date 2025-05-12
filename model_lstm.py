@@ -62,6 +62,7 @@ class LSTM:
             self.B[l] = torch.tensor(B, requires_grad=True)
         
         self.V = torch.empty(self.K[0], self.m[-1], dtype=torch.float64, requires_grad=True)
+        torch.nn.init.xavier_uniform_(self.V)
         self.C = torch.empty(self.K[0], dtype=torch.float64, requires_grad=True)
 
 
@@ -249,14 +250,14 @@ X_seq = X[0:25]
 y_seq = data[1:26] # not one-hot encoded.
 y_seq_indices = [char_to_ind[char] for char in y_seq]
 
-lstm = LSTM(X)
+lstm = LSTM(X, m=[100, 50, 40], n_layers=3)
 
 #print(lstm.W_all)
 loss = lstm.forward(X_seq, y_seq_indices)
 grads = lstm.backward(loss)
-print(lstm.V.grad[0])
-print(lstm.W_all[0].grad[0])
-print(torch.any(lstm.W_all[0].grad != 0))
+#print(lstm.C.grad)
+print(lstm.B[2].grad)
+#print(torch.any(lstm.U_all[0].grad != 0))
 
 #synth_text = lstm.synth_text("a", 25, ind_to_char, char_to_ind, rng)
 #print(synth_text)
