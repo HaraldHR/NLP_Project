@@ -175,11 +175,9 @@ class LSTM:
 
         apply_tanh = torch.nn.Tanh()
         apply_sigmoid = torch.nn.Sigmoid()
-        apply_softmax = torch.nn.Softmax(dim=1)
+        apply_softmax = torch.nn.Softmax(dim=0)
 
-        
-        hprev = h0
-        cprev = torch.zeros(1, self.m[0], dtype=torch.float64)
+
 
 
         x = torch.zeros(self.K[0], dtype=torch.float64)
@@ -192,36 +190,22 @@ class LSTM:
         c = [torch.zeros_like(h[i]) for i in range(self.L)]
 
         for _ in range(n):  # for each time step
-            #x = one-hot vector of previous character
             for l in range(self.L):
-                #print((self.W_all[l] @ h[l]).shape)
-                #print(((self.U_all[l] @ x).unsqueeze(2)).shape)
-                #print("x shape: " + str(x.shape))
                 at = self.W_all[l] @ h[l] + (self.U_all[l] @ x).unsqueeze(2) + self.B[l].unsqueeze(2)
 
-                a = at.view(4, self.m[l], 1)
-                f_t = torch.sigmoid(a[0])
-                i_t = torch.sigmoid(a[1])
-                o_t = torch.sigmoid(a[2])
-                c_hat = torch.tanh(a[3])
+                f_t = apply_sigmoid(at[0])
+                i_t = apply_sigmoid(at[1])
+                o_t = apply_sigmoid(at[2])
+                c_hat = apply_tanh(at[3])
 
                 c[l] = f_t * c[l] + i_t * c_hat
-                h[l] = o_t * torch.tanh(c[l])
+                h[l] = o_t * apply_tanh(c[l])
 
                 x = h[l].squeeze()  # input for next layer
 
-                # the first values for the next layer:
-                if l < self.L - 1: 
-                    hprev = torch.empty(self.m[l + 1], 1, dtype=torch.float64) # new h0
-                    cprev = torch.zeros(1, self.m[l + 1], dtype=torch.float64) # new c0
-                #print(current_X.squeeze().shape)
-                #print(hprev.shape)
-                #print(cprev.shape)
-                print("Layer " + str(l + 1) + " complete!")
-                    
-
             s_t = self.V @ h[-1] + self.C.unsqueeze(1)
             p_t = apply_softmax(s_t)
+
 
             # sample (randomly from prob. dist. p_t), don't use in synthesized text until last layer.
             cp = np.cumsum(p_t.detach().numpy(), axis=0)
@@ -232,8 +216,6 @@ class LSTM:
             x[ii] = 1
             synth_text += ind_to_char[ii] # only synthesize in last layer.
 
-            #hprev = torch.empty(self.m[0], 1, dtype=torch.float64) # new h0 for next layer 1
-            #cprev = torch.zeros(1, self.m[0], dtype=torch.float64) # new c0
         return synth_text
 
     def fit(self, epochs=5):
