@@ -152,13 +152,13 @@ class LSTM:
         ## give informative names to these torch classes
         apply_tanh = torch.nn.Tanh()
         apply_sigmoid = torch.nn.Sigmoid()
-        apply_softmax = torch.nn.Softmax()
+        apply_softmax = torch.nn.Softmax(dim = 0)
 
         hprev = ht
         cprev = ct
         x = torch.zeros(1, self.K, dtype=torch.float64)
         x[0, char_to_ind[x0]] = 1
-        synth_text = ""
+        synth_text = x0
         for t in range(n):
             # at will have shape (4xmx1)
             at = torch.matmul(self.W_all, hprev) + torch.matmul(self.U_all, x.reshape(x.shape[1], 1))
@@ -170,10 +170,12 @@ class LSTM:
             i_t = apply_sigmoid(at[1]).squeeze() # input gate.
             o_t = apply_sigmoid(at[2]).squeeze() # output gate.
             c_hat_t = apply_tanh(at[3]).squeeze() # new memory cell.
-            p_t = apply_softmax(o_t)
             
             cprev = f_t * cprev + i_t * c_hat_t
             hprev = (o_t * apply_tanh(cprev)).reshape(self.m, 1)
+
+            s_t = torch.matmul(self.V, hprev.reshape(self.m, 1))# + self.D
+            p_t = apply_softmax(s_t)
 
             # sample (randomly from prob. dist. p_t) and add to o:
             cp = np.cumsum(p_t.detach().numpy(), axis=0)
@@ -181,10 +183,9 @@ class LSTM:
             ii = np.argmax(cp - a > 0) 
 
 
-            x = torch.zeros(1, self.K)
+            x = torch.zeros(1, self.K, dtype=torch.float64)
             x[0, ii] = 1
             synth_text += ind_to_char[ii]
-            print("ONE LOOP DONE")
 
         return synth_text
 
@@ -229,10 +230,10 @@ y_seq_indices = [char_to_ind[char] for char in y_seq]
 
 lstm = LSTM(X)
 
-loss = lstm.forward(X_seq, y_seq_indices)
-grads_W, grads_U, grads_V = lstm.backward(loss)
+#loss = lstm.forward(X_seq, y_seq_indices)
+#grads_W, grads_U, grads_V = lstm.backward(loss)
 #print(grads_W[0])
-#lstm.synth_text("a", 25, ind_to_char, char_to_ind, rng)
-
+synth_text = lstm.synth_text("a", 25, ind_to_char, char_to_ind, rng)
+print(synth_text)
 #lstm.fit()
 
