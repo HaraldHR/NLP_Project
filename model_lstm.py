@@ -7,15 +7,20 @@ import numpy as np
 from DataProcessing import *
 import copy
 from tqdm import tqdm
+from collections import defaultdict
 
 class LSTM:
     def __init__(self, X, test_size=0.2, m=100, n_layers=2, seq_len=25, lr=0.01, lam=0):
 
-        # The one-hot encoded data
+        # The one-hot encoded data.
         self.X = X
 
         # The test/train split.
         self.test_size = test_size
+
+        # Mappings.
+        self.char2ind = defaultdict(int) # Default dict creates a new assignment (int = 1) if key does not exist.
+        self.ind2char = [] # Value of index in list will be a character.
 
         # The starting learning rate of the model.
         self.lr = lr
@@ -68,7 +73,7 @@ class LSTM:
         torch.nn.init.xavier_uniform_(self.V)
         #torch.nn.init.xavier_uniform_(self.C)
 
-    def synth_text(self, x0, n, ind_to_char, char_to_ind, rng, h0=None):
+    def synth_text(self, x0, n, rng=None, h0=None):
         '''
         Computes the forward pass of the LSTM model to make a prediction.
         :param x0: the first character
@@ -76,9 +81,10 @@ class LSTM:
         :param rng: the previously initialized rng
         :return:
         '''
-
         if h0 is None:
             h0 = torch.empty(self.m, 1, dtype=torch.float64)  # Shape?
+        if rng is None:
+            rng = np.random.default_rng()
 
         # Initliazing the first hidden layer computaions.
         ht = h0
@@ -92,7 +98,7 @@ class LSTM:
         hprev = ht
         cprev = ct
         x = torch.zeros(1, self.K, dtype=torch.float64)
-        x[0, char_to_ind[x0]] = 1
+        x[0, self.char2ind[x0]] = 1
         synth_text = x0
         for t in range(n):
             # at will have shape (4xmx1)
@@ -120,7 +126,7 @@ class LSTM:
 
             x = torch.zeros(1, self.K, dtype=torch.float64)
             x[0, ii] = 1
-            synth_text += ind_to_char[ii]
+            synth_text += self.ind2char[ii]
 
         return synth_text
 
@@ -175,14 +181,14 @@ class LSTM:
             St.append(torch.matmul(self.V, Hs[t].reshape(self.m, 1)) + self.C)
 
         # Os = torch.matmul(Hs, self.W_o) + self.C
-        Hs = torch.stack(Hs, dim=0)  # shape (tau, m, 1)
-        As = torch.stack(As, dim=0)
-        Fs = torch.stack(Fs, dim=0)
-        Is = torch.stack(Is, dim=0)
-        Os = torch.stack(Os, dim=0)
-        C_Hat_s = torch.stack(C_Hat_s, dim=0)
+        # Hs = torch.stack(Hs, dim=0)  # shape (tau, m, 1)
+        # As = torch.stack(As, dim=0)
+        # Fs = torch.stack(Fs, dim=0)
+        # Is = torch.stack(Is, dim=0)
+        # Os = torch.stack(Os, dim=0)
+        # C_Hat_s = torch.stack(C_Hat_s, dim=0)
         St = torch.stack(St, dim=0)
-        Cs = torch.stack(Cs, dim=0)
+        # Cs = torch.stack(Cs, dim=0)
         P = apply_softmax(St).squeeze()
 
         # compute the loss
@@ -233,7 +239,7 @@ class LSTM:
                     self.V     -= grad_V * self.lr
                     self.B     -= grads_B * self.lr
                     self.C     -= grads_C * self.lr
-            #self.synth_text("a", )
+            self.synth_text("a", 25)
 
 
 
@@ -244,24 +250,25 @@ BitGen = type(rng.bit_generator)
 seed = 1
 rng.bit_generator.state = BitGen(seed).state
 
-
 data, unique_chars = ReadData()
-char_to_ind, ind_to_char = GetDicts(unique_chars)
-X = ConvertToOneHot(data, char_to_ind)
+char2ind, ind2char = GetDicts(unique_chars)
+X = ConvertToOneHot(data, char2ind)
 
 X_seq = X[0:25]
 y_seq = data[1:26] # not one-hot encoded.
-y_seq_indices = [char_to_ind[char] for char in y_seq]
+y_seq_indices = [char2ind[char] for char in y_seq]
 
 lstm = LSTM(X)
 
+lstm.ind2char = ind2char
+lstm.char2ind = char2ind
+
 loss = lstm.forward(X_seq, y_seq_indices)
 #grads_W, grads_U, grads_V, grads_B, grads_C = lstm.backward(loss)
-synth_text = lstm.synth_text("a", 25, ind_to_char, char_to_ind, rng)
+synth_text = lstm.synth_text("a", 25, rng)
 print(synth_text)
-#print(synth_text)
 lstm.fit()
-s_text = lstm.synth_text("a", 25, ind_to_char, char_to_ind, rng)
+s_text = lstm.synth_text("a", 25, rng)
 
 print(s_text)
 
