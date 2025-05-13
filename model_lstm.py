@@ -96,7 +96,7 @@ class LSTM:
         #print(self.U_all[0][0])
         #print(self.B[0])
         if h0 is None:
-            h0 = torch.zeros(self.m[0], 1, dtype=torch.float64) # shape (m, 1).
+            h0 = torch.zeros(self.m[0], dtype=torch.float64) # shape (m, 1).
 
         X = torch.from_numpy(X)
 
@@ -110,7 +110,7 @@ class LSTM:
         
 
         hprev = h0
-        cprev = torch.zeros(1, self.m[0], dtype=torch.float64)
+        cprev = torch.zeros(self.m[0], dtype=torch.float64)
 
         
         Hs_L = torch.zeros(tau, self.m[self.L - 1], dtype=torch.float64) # the last Hs, which we use for s and P calculation.
@@ -121,39 +121,41 @@ class LSTM:
             for t in range(tau):
                 # at will have shape (4 x m x 1)
                 
-
-                a_t = torch.matmul(self.W_all[l], hprev) + torch.matmul(self.U_all[l], current_X[t].reshape(current_X[t].shape[0], 1)) + self.B[l].unsqueeze(2) # Include biases
+                a_t = torch.matmul(self.W_all[l], hprev.unsqueeze(1)) + torch.matmul(self.U_all[l], current_X[t].unsqueeze(1)) + self.B[l].unsqueeze(2) # Include biases
             
 
                 f_t = apply_sigmoid(a_t[0]).squeeze() # forget gate.
                 i_t = apply_sigmoid(a_t[1]).squeeze() # input gate.
                 o_t = apply_sigmoid(a_t[2]).squeeze() # output gate.
                 c_hat_t = apply_tanh(a_t[3]).squeeze() # new memory cell.
+
                 cprev = f_t * cprev + i_t * c_hat_t
 
                 h_t = o_t * apply_tanh(cprev)
                 Hs[t] = h_t
                 
-                if l == self.L - 1: Hs_L = Hs[t]
+                if l == self.L - 1: Hs_L = Hs
                 
-                hprev = h_t.reshape(self.m[l], 1)
+                hprev = h_t
                 
 
             # input for next layer:
             current_X = Hs.squeeze()
             # the first values for the next layer:
             if l < self.L - 1: 
-                hprev = torch.empty(self.m[l + 1], 1, dtype=torch.float64) # new h0
-                cprev = torch.zeros(1, self.m[l + 1], dtype=torch.float64) # new c0
+                hprev = torch.empty(self.m[l + 1], dtype=torch.float64) # new h0
+                cprev = torch.zeros(self.m[l + 1], dtype=torch.float64) # new c0
             #print(current_X.squeeze().shape)
             #print(hprev.shape)
             #print(cprev.shape)
             #print("Layer " + str(l + 1) + " complete!")
             
-
-        S = torch.matmul(self.V, Hs_L.reshape(self.m[-1], 1)) + self.C
+        #print(self.C.unsqueeze(1).shape)
+        #print(Hs_L.shape)
+        S = torch.matmul(self.V, Hs_L.reshape(Hs_L.shape[1], Hs_L.shape[0])) + self.C.unsqueeze(1)
+        #print(S.shape)
         #print(Hs[-1][-1].reshape(self.m[-1], 1).shape)
-        P = apply_softmax(S).squeeze()
+        P = apply_softmax(S.reshape(S.shape[1], S.shape[0]))
         
         # compute the loss
         loss = torch.mean(-torch.log(P[np.arange(tau), y]))  # use this line if storing inputs row-wise 
@@ -283,7 +285,7 @@ class LSTM:
                     self.C -= self.C.grad * self.lr
                 if i % 1000 == 0:
                      print("\n----------------------")
-                     print("Gradient magnitudes: " + str(self.W_all[l].grad.norm().item()))
+                     print("W Gradient magnitudes: " + str(self.W_all[l].grad.norm().item()))
                      print("LOSS: " + str(smooth_loss))
                      print(self.synth_text("a", 25, ind2char, char2ind, rng))
                      print("----------------------\n")
@@ -316,7 +318,7 @@ lstm = LSTM(X, m=[100, 50], n_layers=2)
 loss = lstm.forward(X_seq, y_seq_indices)
 grads = lstm.backward(loss)
 print(lstm.C.grad)
-print(lstm.W_all[2].grad[0])
+print(lstm.W_all[1].grad[0])
 print(torch.any(lstm.U_all[0].grad != 0))
 """
 #synth_text = lstm.synth_text("a", 25, ind2char, char2ind, rng)
