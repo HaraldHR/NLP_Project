@@ -2,37 +2,30 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 
-def synthesize_text(model, start_char, char_to_ind, ind_to_char, length, device='cpu'):
-    model.eval()  # Set to evaluation mode
+
+
+def synthesize_text(model, x0, n, ind_to_char, char_to_ind, device='cpu'):
+    model.eval()
     K = len(char_to_ind)
-
-    # Initialize input
-    x = np.zeros((1, 1, K), dtype=np.float32)  # (seq_len=1, batch=1, input_size)
-    x[0, 0, char_to_ind[start_char]] = 1
-    x = torch.tensor(x, dtype=torch.float32).to(device)
-
-    # Initialize hidden state
-    hidden = torch.zeros(model.num_layers, 1, model.hidden_size).to(device)
-
     generated_indices = []
 
+    x = torch.tensor(x0, dtype=torch.float32).unsqueeze(0).unsqueeze(1).to(device)  # (1, 1, K)
+    hidden = None
+
     with torch.no_grad():
-        for _ in range(length):
-            output, hidden = model(x, hidden)  # output: (1, 1, output_size)
-            output = output.squeeze(0).squeeze(0)  # (output_size,)
-            probs = F.softmax(output, dim=0).cpu().numpy()
+        for _ in range(n):
+            output, hidden = model(x, hidden)
+            output = output.squeeze(0).squeeze(0)
+            probs = torch.softmax(output, dim=0).cpu().numpy()
 
-            # Sample next character
-            next_index = np.random.choice(len(probs), p=probs)
-            generated_indices.append(next_index)
+            # sample from probs
+            idx = np.random.choice(K, p=probs)
+            generated_indices.append(idx)
 
-            # Prepare next input
-            x = np.zeros((1, 1, K), dtype=np.float32)
-            x[0, 0, next_index] = 1
-            x = torch.tensor(x, dtype=torch.float32).to(device)
+            x = torch.zeros((1, 1, K), dtype=torch.float32).to(device)
+            x[0, 0, idx] = 1.0
 
-    # Convert indices to string
-    generated_text = ''.join([ind_to_char[idx] for idx in generated_indices])
+    generated_text = ''.join([ind_to_char[i] for i in generated_indices])
     return generated_text
 
 
