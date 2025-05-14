@@ -37,7 +37,7 @@ class Word2Vec(object):
 
         # Mapping from word IDs to (context) word vectors (called w_tilde_vector
         # to be consistent with the notation in the lecture)
-        self.w_tilde_vector = []
+        self.w_tilde_vector = np.zeros()
 
         # Total number of tokens processed
         self.tokens_processed = 0
@@ -127,7 +127,7 @@ class Word2Vec(object):
                 # For future words, we need to look into self.tokens.
                 word = self.tokens[i + j]
                 word_id = self.get_word_id(word)  # initializes a new ID to the word, if it has not been seen.
-                ctx_word_ids.append(word_id)
+                ctx_word_ids.append(int(word_id))
             except:
                 print(
                     f"Not enough words to fit the right-window slide. {self.rws_size - j} words remaining in document.")
@@ -164,6 +164,7 @@ class Word2Vec(object):
                 self.freq[focus_id] += 1 # updates the frequency for the word in the unigram distribution.
                 if self.tokens_processed % 10000 == 0:
                     print(f"Processed {self.tokens_processed} tokens")
+
 
     # Function written by me.
     def compute_sampling_distributions(self):
@@ -205,41 +206,98 @@ class Word2Vec(object):
         return samples
 
 
-    # Function largely written by me.
+
+    def train_vec(self):
+        '''
+        Vectorized training of the word2vec skip-gram model.
+        '''
+        print(f"Dataset contains {len(self.datapoints)} datapoints")
+
+        _ = self.compute_sampling_distributions()
+
+        while self.current_epoch < self.epochs:
+            for i in tqdm(range(len(self.datapoints))):
+                foc_word_id = self.datapoints[i][0]
+                ctx_word_ids = self.datapoints[i][1]  # shape: (C,)
+                print(ctx_word_ids)
+
+                W = self.w_vector[foc_word_id]  # shape: (D,)
+                W = W.reshape(1, -1)  # shape: (1, D)
+
+                # === Positive samples ===
+                W_tilde_pos = self.w_tilde_vector[ctx_word_ids]  # shape: (C, D)
+                dot_pos = W_tilde_pos @ W.T  # shape: (C, 1)
+                sig_pos = sigmoid(dot_pos)  # shape: (C, 1)
+
+                # Gradients for positive context words
+                grad_w_pos = np.sum(W_tilde_pos * (sig_pos - 1), axis=0)  # shape: (D,)
+                grad_w_tilde_pos = (sig_pos - 1) * W  # shape: (C, D)
+                self.w_tilde_vector[ctx_word_ids] -= self.lr * grad_w_tilde_pos
+
+                # === Negative samples ===
+                neg_samples = np.array([
+                    self.negative_sampling(self.n_neg_samples, foc_word_id, pos_ex_id)
+                    for pos_ex_id in ctx_word_ids
+                ]).reshape(-1)  # shape: (C * n_neg_samples,)
+
+                W_tilde_neg = self.w_tilde_vector[neg_samples]  # shape: (C * n_neg, D)
+                dot_neg = W_tilde_neg @ W.T  # shape: (C * n_neg, 1)
+                sig_neg = sigmoid(dot_neg)  # shape: (C * n_neg, 1)
+
+                grad_w_neg = np.sum(W_tilde_neg * sig_neg, axis=0)  # shape: (D,)
+                grad_w_tilde_neg = sig_neg * W  # shape: (C * n_neg, D)
+                self.w_tilde_vector[neg_samples] -= self.lr * grad_w_tilde_neg
+
+                # === Update focus word vector ===
+                grad_focus = grad_w_pos + grad_w_neg  # shape: (D,)
+                self.w_vector[foc_word_id] -= self.lr * grad_focus
+
+            if self.lr_scheduling:
+                print(f"LR scheduling active: Epoch {self.current_epoch + 1} is finished using learning rate={self.lr}")
+            else:
+                print(f"Epoch {self.current_epoch + 1} finished. LR scheduling inactive.")
+
+            self.current_epoch += 1
+            self.write_word_vectors_to_file(self.outputfile)
+
+
+
+    # Function largely written by me
     def train(self):
         '''
         Performs the training of the word2vec skip-gram model
         '''
         print(f"Dataset contains {len(self.datapoints)} datapoints")
 
-        _ = self.compute_sampling_distributions() # p_w is the modified unigram distribution.
+        _ = self.compute_sampling_distributions() # Updates self.P_w
 
         #TODO: Vectorize approach and remove all lists.
         while self.current_epoch < self.epochs:
             for i in tqdm(range(len(self.datapoints))):
 
                 foc_word_id = self.datapoints[i][0]  # the ID of the i'th token / datapoint in the text corpus.
-                ctx_word_ids = self.datapoints[i][1]
+                ctx_word_ids = self.datapoints[i][1] # Of type numpy array.
 
-                grads_bit_pos = []
-                grads_bit_neg = []
                 W = self.w_vector[foc_word_id]  # the specific focus word vector we need.
 
-                for pos_ex_id in ctx_word_ids:
-                    W_tilde = self.w_tilde_vector[pos_ex_id]  # the specific cotext vector we need.
+                grads_bit_pos = np.zeros( (ctx_word_ids.shape[0], W.shape[0]) ) # shape ctx_words x len of each vector
+                grads_bit_neg = np.zeros( (ctx_word_ids.shape[0]*self.n_neg_samples, W.shape[0]) )
+
+                for i, pos_ex_id in enumerate(ctx_word_ids):
+                    W_tilde = self.w_tilde_vector[pos_ex_id]  # the specific context vector we need.
 
                     # Calcs for the focus vector gradient.
                     bit_ctx = W_tilde * (sigmoid(W_tilde.T @ W) - 1)  # calculates pne part of the sum.
-                    grads_bit_pos.append(bit_ctx)
+                    grads_bit_pos[i] = (bit_ctx)
 
                     # Calcs gradient and updates the context vector.
                     ctx_pos_grad = W * (sigmoid(W_tilde.T @ W) - 1)
                     self.w_tilde_vector[pos_ex_id] -= self.lr * ctx_pos_grad
 
                     neg_samples = self.negative_sampling(self.n_neg_samples, foc_word_id, pos_ex_id)
-                    for neg_id in neg_samples:
+                    for i, neg_id in enumerate(neg_samples):
                         W_tilde = self.w_tilde_vector[neg_id]
-                        grads_bit_neg.append(W_tilde * sigmoid(W_tilde.T @ W))
+                        grads_bit_neg[i] = W_tilde * sigmoid(W_tilde.T @ W)
                         ctx_neg_grad = W * (sigmoid(W_tilde @ W))
                         self.w_tilde_vector[neg_id] -= self.lr * ctx_neg_grad
 
@@ -258,6 +316,7 @@ class Word2Vec(object):
             # Write to file after each epoch.
             self.current_epoch += 1
             self.write_word_vectors_to_file(self.outputfile)
+
 
 
     # Function copied from the code skeleton. Maybe re-write?
