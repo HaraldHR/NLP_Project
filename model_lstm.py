@@ -65,9 +65,9 @@ class LSTM:
         # Xavier initialization for layer 1 weights.
         for l in range(self.L):
             W_all, U_all, B = self.init_weights(self.m[l], self.K[l])
-            self.W_all[l] = torch.tensor(W_all, requires_grad=True)
-            self.U_all[l] = torch.tensor(U_all, requires_grad=True)
-            self.B[l] = torch.tensor(B, requires_grad=True)
+            self.W_all[l] = W_all.detach().clone().requires_grad_(True)
+            self.U_all[l] = U_all.detach().clone().requires_grad_(True)
+            self.B[l] = B.detach().clone().requires_grad_(True)
         
         self.V = torch.empty(self.K[0], self.m[-1], dtype=torch.float64, requires_grad=True)
         torch.nn.init.xavier_uniform_(self.V)
@@ -114,49 +114,38 @@ class LSTM:
 
         
         Hs_L = torch.zeros(tau, self.m[self.L - 1], dtype=torch.float64) # the last Hs, which we use for s and P calculation.
-        current_X = X
-        #print(current_X[0].shape)
-        for l in range(self.L): # for each layer
-            Hs = torch.zeros(tau, self.m[l], dtype=torch.float64) # Hs for this layer
-            for t in range(tau):
-                # at will have shape (4 x m x 1)
-                
-                a_t = torch.matmul(self.W_all[l], hprev.unsqueeze(1)) + torch.matmul(self.U_all[l], current_X[t].unsqueeze(1)) + self.B[l].unsqueeze(2) # Include biases
-            
 
-                f_t = apply_sigmoid(a_t[0]).squeeze() # forget gate.
-                i_t = apply_sigmoid(a_t[1]).squeeze() # input gate.
-                o_t = apply_sigmoid(a_t[2]).squeeze() # output gate.
-                c_hat_t = apply_tanh(a_t[3]).squeeze() # new memory cell.
+        hprev = [torch.zeros(self.m[l], dtype=torch.float64) for l in range(self.L)]
+        cprev = [torch.zeros(self.m[l], dtype=torch.float64) for l in range(self.L)]
 
-                cprev = f_t * cprev + i_t * c_hat_t
+        for t in range(tau):
+            x_t = X[t]
+            for l in range(self.L):
+                #print(self.W_all[l].shape)
+                #print(hprev[l].shape)
+                a_t = self.W_all[l] @ hprev[l] + self.U_all[l] @ x_t + self.B[l]
+                a_t = a_t.view(4, self.m[l])
+                #print(a_t.shape)
+                f_t = apply_sigmoid(a_t[0])
+                i_t = apply_sigmoid(a_t[1])
+                o_t = apply_sigmoid(a_t[2])
+                c_hat_t = apply_tanh(a_t[3])
 
-                h_t = o_t * apply_tanh(cprev)
-                Hs[t] = h_t
-                
-                if l == self.L - 1: Hs_L = Hs
-                
-                hprev = h_t
-                
+                c_t = f_t * cprev[l] + i_t * c_hat_t
+                h_t = o_t * apply_tanh(c_t)
 
-            # input for next layer:
-            current_X = Hs.squeeze()
-            # the first values for the next layer:
-            if l < self.L - 1: 
-                hprev = torch.empty(self.m[l + 1], dtype=torch.float64) # new h0
-                cprev = torch.zeros(self.m[l + 1], dtype=torch.float64) # new c0
-            #print(current_X.squeeze().shape)
-            #print(hprev.shape)
-            #print(cprev.shape)
-            #print("Layer " + str(l + 1) + " complete!")
-            
-        #print(self.C.unsqueeze(1).shape)
-        #print(Hs_L.shape)
+                hprev[l] = h_t
+                cprev[l] = c_t
+
+                x_t = h_t  # Feed to next layer
+
+            # Save h_t of the final layer for output computation
+            #print(hprev[-1].shape)
+            #print(Hs_L.shape)
+            Hs_L[t] = hprev[-1]
+
         S = torch.matmul(self.V, Hs_L.reshape(Hs_L.shape[1], Hs_L.shape[0])) + self.C.unsqueeze(1)
-        #print(S.shape)
-        #print(Hs[-1][-1].reshape(self.m[-1], 1).shape)
         P = apply_softmax(S.reshape(S.shape[1], S.shape[0]))
-        
         # compute the loss
         loss = torch.mean(-torch.log(P[np.arange(tau), y]))  # use this line if storing inputs row-wise 
         return loss
@@ -310,7 +299,7 @@ X_seq = X[0:25]
 y_seq = data[1:26] # not one-hot encoded.
 y_seq_indices = [char2ind[char] for char in y_seq]
 
-lstm = LSTM(X, m=[100, 50], n_layers=2)
+lstm = LSTM(X[0: 26], m=[100, 50], n_layers=2)
 
 
 #print(lstm.W_all)
@@ -320,8 +309,7 @@ grads = lstm.backward(loss)
 print(lstm.C.grad)
 print(lstm.W_all[1].grad[0])
 print(torch.any(lstm.U_all[0].grad != 0))
-"""
-#synth_text = lstm.synth_text("a", 25, ind2char, char2ind, rng)
+"""#synth_text = lstm.synth_text("a", 25, ind2char, char2ind, rng)
 #print(synth_text)
 lstm.fit()
 
