@@ -1,0 +1,25 @@
+-------Epochs: 1-------
+Hidden dim: 64, Learning rate: 0.1, Dropout: 0.2, loss: 3.291487818122064
+Hidden dim: 64, Learning rate: 0.01, Dropout: 0.2, loss: 1.646170747427713
+Hidden dim: 64, Learning rate: 0.001, Dropout: 0.2, loss: 1.646170747427713
+-------Epochs: 1-------
+Hidden dim: 64, Learning rate: 0.01, Dropout: 0.2, loss: 1.6724957401866773
+-------Epochs: 1-------
+Hidden dim: 64, Learning rate: 0.01, Dropout: 0.2, loss: 1.6515892965891172
+Hidden dim: 128, Learning rate: 0.01, Dropout: 0.2, loss: 1.5472218163208082
+Hidden dim: 64, Learning rate: 0.001, Dropout: 0.2, loss: 1.5472218163208082
+Hidden dim: 128, Learning rate: 0.001, Dropout: 0.2, loss: 1.5472218163208082
+Hidden dim: 64, Learning rate: 0.01, Dropout: 0.3, loss: 1.5472218163208082
+Hidden dim: 128, Learning rate: 0.01, Dropout: 0.3, loss: 1.5472218163208082
+Hidden dim: 64, Learning rate: 0.001, Dropout: 0.3, loss: 1.5472218163208082
+Hidden dim: 128, Learning rate: 0.001, Dropout: 0.3, loss: 1.5472218163208082
+
+-------Epochs: 2-------
+Hidden dim: 64, Learning rate: 0.01, Dropout: 0.2, loss: 1.640783352309736
+Hidden dim: 128, Learning rate: 0.01, Dropout: 0.2, loss: 1.5047180213427684
+Hidden dim: 64, Learning rate: 0.001, Dropout: 0.2, loss: 1.5047180213427684
+Hidden dim: 128, Learning rate: 0.001, Dropout: 0.2, loss: 1.4433613949537292
+Hidden dim: 64, Learning rate: 0.01, Dropout: 0.3, loss: 1.4433613949537292
+Hidden dim: 128, Learning rate: 0.01, Dropout: 0.3, loss: 1.4433613949537292
+Hidden dim: 64, Learning rate: 0.001, Dropout: 0.3, loss: 1.4433613949537292
+Hidden dim: 128, Learning rate: 0.001, Dropout: 0.3, loss: 1.4433613949537292
