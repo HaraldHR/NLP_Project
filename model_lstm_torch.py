@@ -5,6 +5,7 @@ import numpy as np
 import torch.nn.functional as F
 from DataProcessing import ReadData  # Assuming ReadData is in DataProcessing.py
 import LSTM_search
+import copy
 
 import os
 
@@ -43,25 +44,30 @@ class LSTM(nn.Module):
         c0 = torch.zeros(self.num_layers, batch_size, self.hidden_size)
         return (h0, c0)
     
-    def nucleus_sampling(probs, p=0.9):
+    def nucleus_sampling(self, probs, p=0.9):
         sorted_probs, sorted_indices = torch.sort(probs, descending=True)
         # Sum up probs
-        cumulative_probs = torch.cumsum(sorted_probs, dim=0) 
+        cumulative_probs = torch.cumsum(sorted_probs, dim=1)
 
         # Find cutoff where cumulative probability exceeds p
-        cutoff = torch.searchsorted(cumulative_probs, p)
-        top_probs = sorted_probs[:cutoff + 1]
-        top_indices = sorted_indices[:cutoff + 1]
 
+        cutoff = 0
+        for sum in cumulative_probs.squeeze():
+            cutoff += 1
+            if sum.item() > p:
+                break
+        #print(sorted_probs.shape)
+        #print(sorted_indices.shape)
+        top_probs = sorted_probs[0, :cutoff + 1]
+        top_indices = sorted_indices[0, :cutoff + 1]
         # Renormalize the probabilities
         top_probs = top_probs / top_probs.sum()
-
         # Sample from top-p
         selected_idx = torch.multinomial(top_probs, 1)
-        return top_indices[selected_idx]
+        return top_indices.squeeze()[selected_idx].item()
     
     def temperature_sampling(self, output, temp=0.8):
-        probs = F.softmax(output / temp)
+        probs = F.softmax(output / temp, dim=0)
         next_char_id = torch.multinomial(probs, 1).item() # samples from distribution.
         return next_char_id
 
@@ -86,7 +92,7 @@ class LSTM(nn.Module):
             output, hidden = self(input_one_hot, hidden)
             
             # Apply softmax to get probabilities for the next character
-            output_probs = F.softmax(output[-1].squeeze())  # Use the last output for prediction.
+            output_probs = F.softmax(output[-1].squeeze(), dim=0)  # Use the last output for prediction.
             
             #next_char_idx = torch.multinomial(output_probs, 1).item() # Pure Sampling
             #next_char_idx = self.nucleus_sampling(output_probs) # Nucleus Sampling
@@ -147,6 +153,7 @@ class LSTM(nn.Module):
                 # Reshape output: (seq_len, batch, output_size) → (seq_len * batch, output_size)
                 output_seq = output_seq.view(-1, output_size)
                 target_seq = target_seq.view(-1)
+
 
                 loss = criterion(output_seq, target_seq) # cross entropy loss
                 loss.backward()
