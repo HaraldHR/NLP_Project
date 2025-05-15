@@ -4,14 +4,18 @@ import torch.optim as optim
 import numpy as np
 import torch.nn.functional as F
 from DataProcessing import ReadData  # Assuming ReadData is in DataProcessing.py
+import LSTM_search
 
 import os
 
 class LSTM(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, num_layers=1, dropout=0.2):
+    def __init__(self, input_size, hidden_size, output_size, unique_chars, num_layers=1, dropout=0.2):
         super(LSTM, self).__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
+
+        self.char2ind = {char: idx for idx, char in enumerate(unique_chars)}
+        self.ind2char = {idx: char for idx, char in enumerate(unique_chars)}
 
         # Define the LSTM layer
         self.lstm = nn.LSTM(
@@ -39,6 +43,29 @@ class LSTM(nn.Module):
         c0 = torch.zeros(self.num_layers, batch_size, self.hidden_size)
         return (h0, c0)
     
+    def nucleus_sampling(probs, p=0.9):
+        sorted_probs, sorted_indices = torch.sort(probs, descending=True)
+        # Sum up probs
+        cumulative_probs = torch.cumsum(sorted_probs, dim=0) 
+
+        # Find cutoff where cumulative probability exceeds p
+        cutoff = torch.searchsorted(cumulative_probs, p)
+        top_probs = sorted_probs[:cutoff + 1]
+        top_indices = sorted_indices[:cutoff + 1]
+
+        # Renormalize the probabilities
+        top_probs = top_probs / top_probs.sum()
+
+        # Sample from top-p
+        selected_idx = torch.multinomial(top_probs, 1)
+        return top_indices[selected_idx]
+    
+    def temperature_sampling(output, temperature = 0.8):
+        adjusted_output = output / temperature
+        probs = F.softmax(adjusted_output[-1], dim = -1)
+        next_char_idx = torch.multinomial(probs, 1).item()
+        return next_char_idx
+
     def synth_text(self, start_char, char2ind, ind2char, seq_len=100):
         self.eval()  # Set the model to evaluation mode
 
@@ -61,7 +88,8 @@ class LSTM(nn.Module):
             
             # Apply softmax to get probabilities for the next character
             output_probs = F.softmax(output[-1], dim=-1)  # Use the last output for prediction
-            next_char_idx = torch.multinomial(output_probs, 1).item()  # Sample a character
+            #next_char_idx = torch.multinomial(output_probs, 1).item() # Pure Sampling
+            next_char_idx = self.nucleus_sampling(output_probs) # Nucleus Sampling
 
             # Get the next character
             next_char = ind2char[next_char_idx]
@@ -77,7 +105,7 @@ class LSTM(nn.Module):
 
 
 
-    def train_model(self, X_input, num_epochs, char2ind, ind2char, seq_len=50, learning_rate=0.001, best_loss_ever = 10000):
+    def train_model(self, X_input, num_epochs, seq_len=50, learning_rate=0.001, best_loss_ever = 10000):
         total_length = X_input.size(0)
         output_size = self.fc.out_features
 
@@ -120,6 +148,8 @@ class LSTM(nn.Module):
                 output_seq = output_seq.view(-1, output_size)
                 target_seq = target_seq.view(-1)
 
+                print(torch.sum(output_seq[0]))
+
                 loss = criterion(output_seq, target_seq) # cross entropy loss
                 loss.backward()
 
@@ -137,16 +167,16 @@ class LSTM(nn.Module):
                     best_loss = smooth_loss
                     
                     best_model_state_dict = self.state_dict()
-                    print(f"Best model saved with loss: {best_loss:.4f}")
-
+                    #print(f"Best model saved with loss: {best_loss:.4f}")
+                """
                 if n % 500 == 0:
                     print(f"Iteration [{n + 1}/{n}], Loss: {smooth_loss:.4f}")
-                    print(self.synth_text("A", char2ind, ind2char, seq_len=100))
-
+                    #print(self.synth_text("A", self.char2ind, self.ind2char, seq_len=100))
+                """
                 n += 1
 
             avg_loss = epoch_loss / num_chunks
-            print(f"Epoch [{epoch + 1}/{num_epochs}], Avg Loss: {avg_loss:.4f}")
+            #print(f"Epoch [{epoch + 1}/{num_epochs}], Avg Loss: {avg_loss:.4f}")
 
         return best_loss, best_model_state_dict
 
@@ -168,7 +198,7 @@ def preprocess_data():
     # One-hot encode the data
     X_one_hot = F.one_hot(X_input, num_classes=len(unique_chars)).float()
 
-    return X_one_hot, char2ind, ind2char
+    return X_one_hot, unique_chars
 
 
 def main():
@@ -192,18 +222,25 @@ def main():
         best_loss_ever = float('inf')  # If not found, use infinity as the initial best
     
     # Preprocess data
-    X_one_hot, char2ind, ind2char = preprocess_data()
-    
+    X_one_hot, unique_chars = preprocess_data()
+    """
+    learning_rates = [0.01, 0.005, 0.001]
+    hidden_dims = [64, 128, 256]
+    dropout_values = [0.1, 0.2, 0.3]
+    LSTM_search.grid_search_lstm(X_one_hot, unique_chars, learning_rates, hidden_dims, dropout_values, num_epochs=3)
+    """
+
     # Initialize the LSTM model
-    model = LSTM(input_size=input_size, hidden_size=hidden_size, output_size=output_size, num_layers=num_layers)
+    model = LSTM(input_size=input_size, hidden_size=hidden_size, unique_chars = unique_chars, output_size=output_size, num_layers=num_layers)
 
     # Train the model
-    best_loss, best_model_state_dict = model.train_model(X_one_hot, num_epochs, char2ind, ind2char, seq_len=seq_len, learning_rate=learning_rate, best_loss_ever = best_loss_ever)
+    best_loss, best_model_state_dict = model.train_model(X_one_hot, num_epochs, seq_len=seq_len, learning_rate=learning_rate, best_loss_ever = best_loss_ever)
+    
+    # Write best result to to files
     torch.save(best_model_state_dict, best_model_path)
     with open(best_loss_path, "w") as f:
         f.write(str(best_loss))
     print(f"Best loss after training: {best_loss:.4f}")
-
 
 if __name__ == '__main__':
     main()
