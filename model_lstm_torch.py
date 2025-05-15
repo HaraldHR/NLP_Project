@@ -178,7 +178,7 @@ def main():
     output_size = 65  # Modify based on unique_chars length
     num_layers = 2
     seq_len = 50
-    num_epochs = 2
+    num_epochs = 10
     learning_rate = 0.001
 
     best_model_path = "best_lstm_model.pth"
