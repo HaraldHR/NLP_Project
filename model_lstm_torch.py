@@ -47,7 +47,7 @@ class LSTM(nn.Module):
     def nucleus_sampling(self, probs, p=0.9):
         sorted_probs, sorted_indices = torch.sort(probs, descending=True)
         # Sum up probs
-        cumulative_probs = torch.cumsum(sorted_probs, dim=1) 
+        cumulative_probs = torch.cumsum(sorted_probs, dim=1)
 
         # Find cutoff where cumulative probability exceeds p
 
@@ -66,11 +66,10 @@ class LSTM(nn.Module):
         selected_idx = torch.multinomial(top_probs, 1)
         return top_indices.squeeze()[selected_idx].item()
     
-    def temperature_sampling(output, temperature = 0.8):
-        adjusted_output = output / temperature
-        probs = F.softmax(adjusted_output[-1], dim = -1)
-        next_char_idx = torch.multinomial(probs, 1).item()
-        return next_char_idx
+    def temperature_sampling(self, output, temp=0.8):
+        probs = F.softmax(output / temp, dim=0)
+        next_char_id = torch.multinomial(probs, 1).item() # samples from distribution.
+        return next_char_id
 
     def synth_text(self, start_char, char2ind, ind2char, seq_len=100):
         self.eval()  # Set the model to evaluation mode
@@ -91,11 +90,13 @@ class LSTM(nn.Module):
         for _ in range(seq_len):
             # Get the output from the LSTM forward pass
             output, hidden = self(input_one_hot, hidden)
-            #print(output[-1])
+            
             # Apply softmax to get probabilities for the next character
-            output_probs = F.softmax(output[-1], dim=-1)  # Use the last output for prediction
+            output_probs = F.softmax(output[-1].squeeze(), dim=0)  # Use the last output for prediction.
+            
             #next_char_idx = torch.multinomial(output_probs, 1).item() # Pure Sampling
-            next_char_idx = self.nucleus_sampling(output_probs) # Nucleus Sampling
+            #next_char_idx = self.nucleus_sampling(output_probs) # Nucleus Sampling
+            next_char_idx = self.temperature_sampling(output.squeeze())
 
             # Get the next character
             next_char = ind2char[next_char_idx]
@@ -117,7 +118,6 @@ class LSTM(nn.Module):
 
         
         best_model_state_dict = {}
-
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(self.parameters(), lr=learning_rate)
 
@@ -155,7 +155,6 @@ class LSTM(nn.Module):
                 target_seq = target_seq.view(-1)
 
 
-
                 loss = criterion(output_seq, target_seq) # cross entropy loss
                 loss.backward()
 
@@ -173,11 +172,10 @@ class LSTM(nn.Module):
                     best_loss = smooth_loss
                     
                     best_model_state_dict = self.state_dict()
-                
+
                 if n % 500 == 0:
                     print(f"Iteration [{n + 1}/{n}], Loss: {smooth_loss:.4f}")
                     print(self.synth_text("A", self.char2ind, self.ind2char, seq_len=100))
-                
                 n += 1
 
             avg_loss = epoch_loss / num_chunks
