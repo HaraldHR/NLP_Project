@@ -88,6 +88,7 @@ class LSTM(nn.Module):
             
             # Apply softmax to get probabilities for the next character
             output_probs = F.softmax(output[-1], dim=-1)  # Use the last output for prediction
+            
             #next_char_idx = torch.multinomial(output_probs, 1).item() # Pure Sampling
             next_char_idx = self.nucleus_sampling(output_probs) # Nucleus Sampling
 
