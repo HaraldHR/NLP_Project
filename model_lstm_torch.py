@@ -56,9 +56,10 @@ class LSTM(nn.Module):
             cutoff += 1
             if sum.item() > p:
                 break
-
-        top_probs = sorted_probs[:cutoff + 1]
-        top_indices = sorted_indices[:cutoff + 1]
+        #print(sorted_probs.shape)
+        #print(sorted_indices.shape)
+        top_probs = sorted_probs[0, :cutoff + 1]
+        top_indices = sorted_indices[0, :cutoff + 1]
         # Renormalize the probabilities
         top_probs = top_probs / top_probs.sum()
         # Sample from top-p
