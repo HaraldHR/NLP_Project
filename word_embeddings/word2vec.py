@@ -1,5 +1,5 @@
 '''
-Computes word2vec word embedding from a data-set.
+Uses logistic regression to compute word2vec word embedding from a data-set.
 Code inspired by DD2417 Language Engineering, Assignment 3.
 '''
 
@@ -11,6 +11,7 @@ from collections import defaultdict
 import torch
 from tqdm import tqdm
 import copy
+from BPE import BPE
 
 
 def sigmoid(X):
@@ -19,7 +20,7 @@ def sigmoid(X):
 
 class Word2Vec(object):
     def __init__(self, dimension=100, lws_size=2, rws_size=2, n_neg_samples=10,
-                 lr=0.025, epochs=5, lr_scheduling=True, output="vectors.txt"):
+                 lr=0.025, epochs=5, lr_scheduling=True, tokenization=None, output="vectors.txt"):
 
         # Size of the context window.
         self.lws_size = lws_size
@@ -37,7 +38,7 @@ class Word2Vec(object):
 
         # Mapping from word IDs to (context) word vectors (called w_tilde_vector
         # to be consistent with the notation in the lecture)
-        self.w_tilde_vector = np.zeros()
+        self.w_tilde_vector = []
 
         # Total number of tokens processed
         self.tokens_processed = 0
@@ -77,6 +78,9 @@ class Word2Vec(object):
 
         # Initializes the processed token to be None.
         self.tokens = None
+
+        # If None use standard tokenization. Otherwise input a tokenization module (like BPE).
+        self.tokenization = tokenization
 
 
     # Function written by me.
@@ -150,11 +154,22 @@ class Word2Vec(object):
             print(f"Processing file: {file_or_dir}")
             stream = open(file_or_dir, mode='r', encoding='utf-8', errors='ignore')
             text = stream.read()
-            try:
-                self.tokens = nltk.word_tokenize(text)
-            except LookupError:
-                nltk.download('punkt_tab')
-                self.tokens = nltk.word_tokenize(text)
+
+            if self.tokenization is None:
+                try:
+                    self.tokens = nltk.word_tokenize(text)
+                    print(self.tokens)
+                except LookupError:
+                    nltk.download('punkt_tab')
+                    self.tokens = nltk.word_tokenize(text)
+            else:
+                try:
+                    print("Fetching BPE tokens...")
+                    vocab, self.tokens = self.tokenization.tokenize(text)
+                    print(self.tokens)
+                except:
+                    raise ValueError(f"Something went wrong in tokenization...")
+
             for i, token in enumerate(self.tokens):
                 self.tokens_processed += 1
                 focus_id = self.get_word_id(token)
@@ -176,7 +191,6 @@ class Word2Vec(object):
         # P_u is the unigram distribution,
         # P_w is the modified unigram distribution
         P_u = np.array(list(map(uni_sample, self.freq.keys())))
-        print(P_u)
         mod_list = P_u ** 0.75
         sum_mod = np.sum(mod_list)
         P_w = [p / sum_mod for p in mod_list]
@@ -219,7 +233,6 @@ class Word2Vec(object):
             for i in tqdm(range(len(self.datapoints))):
                 foc_word_id = self.datapoints[i][0]
                 ctx_word_ids = self.datapoints[i][1]  # shape: (C,)
-                print(ctx_word_ids)
 
                 W = self.w_vector[foc_word_id]  # shape: (D,)
                 W = W.reshape(1, -1)  # shape: (1, D)
@@ -341,7 +354,8 @@ if __name__ == '__main__':
     file = '../shakespeare.txt'
 
     # Creates the word2vec model.
-    w2v = Word2Vec(dimension=100, n_neg_samples=15, epochs=5, lr_scheduling=True)
+    bpe = BPE(max_vocab_size=500)
+    w2v = Word2Vec(dimension=100, n_neg_samples=15, epochs=5, lr_scheduling=True, tokenization=bpe)
         
     w2v.process_files(file)
     print(f"Processed {w2v.tokens_processed} tokens")
