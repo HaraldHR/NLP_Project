@@ -4,3 +4,32 @@ Hidden dim: 100, Learning rate: 0.005, Batch size: 64, Validation Loss: 2.029714
 -------Epochs: 3-------
 Hidden dim: 100, Learning rate: 0.01, Batch size: 64, Validation Loss: 2.001567322557623
 Hidden dim: 100, Learning rate: 0.005, Batch size: 64, Validation Loss: 2.117228299921209
+
+-------Epochs: 10-------
+Hidden dim: 64, Learning rate: 0.01, Batch size: 32, Validation Loss: 1.968526714556926
+Hidden dim: 64, Learning rate: 0.01, Batch size: 64, Validation Loss: 1.9776450395584106
+Hidden dim: 64, Learning rate: 0.01, Batch size: 128, Validation Loss: 1.959479636616177
+Hidden dim: 128, Learning rate: 0.01, Batch size: 32, Validation Loss: 1.8512786326107677
+Hidden dim: 128, Learning rate: 0.01, Batch size: 64, Validation Loss: 1.8263048193671487
+Hidden dim: 128, Learning rate: 0.01, Batch size: 128, Validation Loss: 1.8594437837600708
+Hidden dim: 256, Learning rate: 0.01, Batch size: 32, Validation Loss: 1.8379123039073773
+Hidden dim: 256, Learning rate: 0.01, Batch size: 64, Validation Loss: 1.8480404550378973
+Hidden dim: 256, Learning rate: 0.01, Batch size: 128, Validation Loss: 1.934259330784833
+Hidden dim: 64, Learning rate: 0.005, Batch size: 32, Validation Loss: 1.9350103419106286
+Hidden dim: 64, Learning rate: 0.005, Batch size: 64, Validation Loss: 1.9667210492220792
+Hidden dim: 64, Learning rate: 0.005, Batch size: 128, Validation Loss: 2.0573375754886203
+Hidden dim: 128, Learning rate: 0.005, Batch size: 32, Validation Loss: 1.8319369361207292
+Hidden dim: 128, Learning rate: 0.005, Batch size: 64, Validation Loss: 1.8341566280885175
+Hidden dim: 128, Learning rate: 0.005, Batch size: 128, Validation Loss: 1.8995170460806952
+Hidden dim: 256, Learning rate: 0.005, Batch size: 32, Validation Loss: 1.7702109942565094
+Hidden dim: 256, Learning rate: 0.005, Batch size: 64, Validation Loss: 1.7771112030202691
+Hidden dim: 256, Learning rate: 0.005, Batch size: 128, Validation Loss: 1.7900311858565718
+Hidden dim: 64, Learning rate: 0.001, Batch size: 32, Validation Loss: 2.0622024901278384
+Hidden dim: 64, Learning rate: 0.001, Batch size: 64, Validation Loss: 2.1763608238913794
+Hidden dim: 64, Learning rate: 0.001, Batch size: 128, Validation Loss: 2.322314324202361
+Hidden dim: 128, Learning rate: 0.001, Batch size: 32, Validation Loss: 1.9083906508780815
+Hidden dim: 128, Learning rate: 0.001, Batch size: 64, Validation Loss: 2.0581047253175213
+Hidden dim: 128, Learning rate: 0.001, Batch size: 128, Validation Loss: 2.2014180289374456
+Hidden dim: 256, Learning rate: 0.001, Batch size: 32, Validation Loss: 1.7815287048752244
+Hidden dim: 256, Learning rate: 0.001, Batch size: 64, Validation Loss: 1.8377604744651101
+Hidden dim: 256, Learning rate: 0.001, Batch size: 128, Validation Loss: 2.065756117856061

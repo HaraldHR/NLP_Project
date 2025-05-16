@@ -272,9 +272,9 @@ def main():
     """
     
     learning_rates = [0.01, 0.005, 0.001]
-    hidden_dims = [100]
-    batch_sizes = [64]
-    LSTM_search.grid_search_lstm(X_train, unique_chars, learning_rates, hidden_dims, batch_sizes, num_epochs=3)
+    hidden_dims = [128, 256]
+    batch_sizes = [32, 64, 128]
+    LSTM_search.grid_search_lstm(X_train, unique_chars, learning_rates, hidden_dims, batch_sizes, num_epochs=10)
     
     """
     # Initialize the LSTM model
