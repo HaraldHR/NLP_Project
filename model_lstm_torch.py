@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import torch.nn.functional as F
-from DataProcessing import ReadData  # Assuming ReadData is in DataProcessing.py
+from DataProcessing import *  # Assuming ReadData is in DataProcessing.py
 import LSTM_search
 import copy
 
@@ -228,18 +228,21 @@ def main():
     
     # Preprocess data
     X_one_hot, unique_chars = preprocess_data()
+
+    X_train, X_test = TrainTestSplit(X_one_hot, train_size=0.8)
+
     """
     learning_rates = [0.01, 0.005, 0.001]
     hidden_dims = [64, 128, 256]
     dropout_values = [0.1, 0.2, 0.3]
-    LSTM_search.grid_search_lstm(X_one_hot, unique_chars, learning_rates, hidden_dims, dropout_values, num_epochs=3)
+    LSTM_search.grid_search_lstm(X_train, unique_chars, learning_rates, hidden_dims, dropout_values, num_epochs=3)
     """
 
     # Initialize the LSTM model
     model = LSTM(input_size=input_size, hidden_size=hidden_size, unique_chars = unique_chars, output_size=output_size, num_layers=num_layers)
 
     # Train the model
-    best_loss, best_model_state_dict = model.train_model(X_one_hot, num_epochs, seq_len=seq_len, learning_rate=learning_rate, best_loss_ever = best_loss_ever)
+    best_loss, best_model_state_dict = model.train_model(X_train, num_epochs, seq_len=seq_len, learning_rate=learning_rate, best_loss_ever = best_loss_ever)
     
     # Write best result to to files
     torch.save(best_model_state_dict, best_model_path)
