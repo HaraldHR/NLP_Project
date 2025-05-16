@@ -3,21 +3,24 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import torch.nn.functional as F
-from DataProcessing import ReadData  # Assuming ReadData is in DataProcessing.py
+from DataProcessing import *  # Assuming ReadData is in DataProcessing.py
 import LSTM_search
 import copy
+from tqdm import tqdm
+from DataVisualization import LossPlotter
 
 import os
 
 class LSTM(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, unique_chars, num_layers=1, dropout=0.2):
+    def __init__(self, input_size, hidden_size, output_size, unique_chars, batch_size, seq_len,  num_layers=1, dropout=0.2):
         super(LSTM, self).__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
 
         self.char2ind = {char: idx for idx, char in enumerate(unique_chars)}
         self.ind2char = {idx: char for idx, char in enumerate(unique_chars)}
-
+        self.batch_size = batch_size
+        self.seq_len = seq_len
         # Define the LSTM layer
         self.lstm = nn.LSTM(
             input_size=input_size,
@@ -92,11 +95,11 @@ class LSTM(nn.Module):
             output, hidden = self(input_one_hot, hidden)
             
             # Apply softmax to get probabilities for the next character
-            output_probs = F.softmax(output[-1].squeeze(), dim=0)  # Use the last output for prediction.
-            
-            #next_char_idx = torch.multinomial(output_probs, 1).item() # Pure Sampling
+
+            output_probs = F.softmax(output[-1], dim=-1)  # Use the last output for prediction
+            next_char_idx = torch.multinomial(output_probs, 1).item() # Pure Sampling
             #next_char_idx = self.nucleus_sampling(output_probs) # Nucleus Sampling
-            next_char_idx = self.temperature_sampling(output.squeeze())
+            #next_char_idx = self.temperature_sampling(output.squeeze())
 
             # Get the next character
             next_char = ind2char[next_char_idx]
@@ -112,8 +115,7 @@ class LSTM(nn.Module):
 
 
 
-    def train_model(self, X_input, num_epochs, seq_len=50, learning_rate=0.001, best_loss_ever = 10000):
-        total_length = X_input.size(0)
+    def train_model(self, X_train_batches, Y_train_batches, X_val_batches, Y_val_batches, num_epochs, learning_rate=0.001, best_loss_ever = 10000):
         output_size = self.fc.out_features
 
         
@@ -121,31 +123,34 @@ class LSTM(nn.Module):
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(self.parameters(), lr=learning_rate)
 
-        num_chunks = (total_length - 1) // seq_len
         n = 0
 
+        loss_train = []
+        loss_val = []
+        epochs = []
+
+
         best_loss = best_loss_ever
-        for epoch in range(num_epochs):
+        for epoch in tqdm(range(num_epochs)):
             epoch_loss = 0.0
             hidden = None
 
-            for c in range(num_chunks):
-                start = c * seq_len
-                end = start + seq_len
-
-                input_seq = X_input[start:end].unsqueeze(1)  # (seq_len, 1, input_size)
-                Y_seq = X_input[start + 1: end + 1]
-                target_seq = torch.argmax(Y_seq, dim=1) # (seq_len,)
-                 
+            epoch_loss = 0
+            for i in range(X_train_batches.shape[0]):
+                
+                #print(f"Batch: {i+1}")
+                X_batch = X_train_batches[i] # (seq_len, 1, input_size)
+                Y_batch = Y_train_batches[i]
+                
+                target_seq = torch.argmax(Y_batch, dim=2)
 
                 optimizer.zero_grad()
 
                 # Initialize the hidden and cell states if None
                 if hidden is None:
-                    hidden = self.init_hidden(batch_size=1)
+                    hidden = self.init_hidden(batch_size=self.batch_size)
 
-                output_seq, hidden = self.forward(input_seq, hidden)
-                
+                output_seq, hidden = self.forward(X_batch, hidden)
                 # Detach hidden states to avoid backprop through the entire training history
                 if hidden is not None:
                     hidden = tuple([h.detach() for h in hidden])
@@ -156,6 +161,7 @@ class LSTM(nn.Module):
 
 
                 loss = criterion(output_seq, target_seq) # cross entropy loss
+                epoch_loss += loss.item() # for average
                 loss.backward()
 
                 # Clip gradients to avoid exploding gradients
@@ -164,24 +170,50 @@ class LSTM(nn.Module):
                 optimizer.step()
 
                 if n == 0:
-                    smooth_loss = loss.item()
+                    smooth_loss_train = loss.item()
                 else:
-                    smooth_loss = 0.999 * smooth_loss + 0.001 * loss.item()
-                epoch_loss += smooth_loss
-                if smooth_loss < best_loss:
-                    best_loss = smooth_loss
+                    smooth_loss_train = 0.999 * smooth_loss_train + 0.001 * loss.item()
+                if smooth_loss_train < best_loss:
+                    best_loss = smooth_loss_train
                     
                     best_model_state_dict = self.state_dict()
 
                 if n % 500 == 0:
-                    print(f"Iteration [{n + 1}/{n}], Loss: {smooth_loss:.4f}")
+                    print(f"Iteration [{n + 1}/{n}], Loss: {smooth_loss_train:.4f}")
                     print(self.synth_text("A", self.char2ind, self.ind2char, seq_len=100))
-                n += 1
 
-            avg_loss = epoch_loss / num_chunks
+                n += 1
+            
+            # check on validation set at the end of each epoch:
+            val_loss_sum = 0
+            for j in range(X_val_batches.shape[0]):
+                val_output, _ = self.forward(X_val_batches[j], None)
+                val_targets = torch.argmax(Y_val_batches[j], dim = 2)
+                val_output = val_output.view(-1, output_size)
+                val_targets = val_targets.view(-1)
+                val_loss = criterion(val_output, val_targets) # cross entropy loss
+                val_loss_sum += val_loss.item()
+            
+            train_loss_avg = epoch_loss / X_train_batches.shape[0]
+            val_loss_avg = val_loss_sum / X_val_batches.shape[0]
+            
+            
+            loss_train.append(train_loss_avg)
+            loss_val.append(val_loss_avg)
+            epochs.append(epoch)
+                    
+                    
+                
+
+
+
+
+            steps_for_plotting = torch.arange(0, n, 500)
+            #avg_loss = epoch_loss / num_chunks
+            print(f"Epoch {epoch + 1}/{num_epochs}")
             #print(f"Epoch [{epoch + 1}/{num_epochs}], Avg Loss: {avg_loss:.4f}")
 
-        return best_loss, best_model_state_dict
+        return best_loss, best_model_state_dict, epochs, loss_train, loss_val
 
 
 def preprocess_data():
@@ -197,7 +229,7 @@ def preprocess_data():
 
     # Convert indices to tensor
     X_input = torch.tensor(data_indices, dtype=torch.long)
-    
+
     # One-hot encode the data
     X_one_hot = F.one_hot(X_input, num_classes=len(unique_chars)).float()
 
@@ -211,8 +243,9 @@ def main():
     output_size = 65  # Modify based on unique_chars length
     num_layers = 2
     seq_len = 50
-    num_epochs = 10
+    num_epochs = 200
     learning_rate = 0.001
+    batch_size = 64
 
     best_model_path = "best_lstm_model.pth"
     best_loss_path = "best_loss_lstm.txt"
@@ -225,19 +258,30 @@ def main():
         best_loss_ever = float('inf')  # If not found, use infinity as the initial best
     
     # Preprocess data
-    X_one_hot, unique_chars = preprocess_data()
+    X_data, unique_chars = preprocess_data()
+
+    X_train, X_test = TrainTestSplit(X_data, train_size=0.8)
     """
+    X_train, X_val_batches = TrainValSplit(X_train, val_size = 0.2)
+
+    X_train_batches, Y_train_batches = GetBatches(X_train, seq_len=seq_len, batch_size=batch_size)
+
+    X_val_batches, Y_val_batches = GetBatches(X_val_batches, seq_len=seq_len, batch_size=batch_size) # Simply for input shape for the forwardpass, we make on big batch
+    X_val_batches = X_val_batches.squeeze(0)
+    Y_val_batches = Y_val_batches.squeeze(0) # Makin it only one batch, don't need the outer dimension.
+    """
+    
     learning_rates = [0.01, 0.005, 0.001]
-    hidden_dims = [64, 128, 256]
-    dropout_values = [0.1, 0.2, 0.3]
-    LSTM_search.grid_search_lstm(X_one_hot, unique_chars, learning_rates, hidden_dims, dropout_values, num_epochs=3)
+    hidden_dims = [100]
+    batch_sizes = [64]
+    LSTM_search.grid_search_lstm(X_train, unique_chars, learning_rates, hidden_dims, batch_sizes, num_epochs=3)
+    
     """
-
     # Initialize the LSTM model
-    model = LSTM(input_size=input_size, hidden_size=hidden_size, unique_chars = unique_chars, output_size=output_size, num_layers=num_layers)
-
+    model = LSTM(input_size=input_size, hidden_size=hidden_size, unique_chars = unique_chars, output_size=output_size, num_layers=num_layers, batch_size = batch_size, seq_len = seq_len)
+    
     # Train the model
-    best_loss, best_model_state_dict = model.train_model(X_one_hot, num_epochs, seq_len=seq_len, learning_rate=learning_rate, best_loss_ever = best_loss_ever)
+    best_loss, best_model_state_dict, epochs_for_plot, train_loss, val_loss = model.train_model(X_train_batches, Y_train_batches, X_val, Y_val, num_epochs, learning_rate=learning_rate, best_loss_ever = best_loss_ever)
     
     # Write best result to to files
     torch.save(best_model_state_dict, best_model_path)
@@ -245,5 +289,7 @@ def main():
         f.write(str(best_loss))
     print(f"Best loss after training: {best_loss:.4f}")
 
+    LossPlotter.plot_losses(train_loss, val_loss, epochs_for_plot)
+    """
 if __name__ == '__main__':
     main()
