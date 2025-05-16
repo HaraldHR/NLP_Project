@@ -19,6 +19,7 @@ class BPE:
         self.pair_freqs = defaultdict(int)
         self.vocab = []
         self.tokens = {} # will contain a dictionairy with each word as key, and that words tokenization as a list of tokens as the value.
+        self.merges = {}
 
 
     def tokenize(self, text, create_new_vocab=True):
@@ -30,9 +31,9 @@ class BPE:
         '''
         if create_new_vocab:
             self.reset_model()
-        self.pre_tokenize(text)
+        self.pre_tokenize([text] if isinstance(text, str) else text) # Calculates word frequencies.
         self.create_vocab()
-        self.generate_tokens(corpus)
+        self.generate_tokens(text)
 
         return self.vocab, self.tokens
 
@@ -54,12 +55,11 @@ class BPE:
         self.max_vocab_size = vocab_length
 
 
-    # Function imported from Hugging Face tutorial.
+
     def pre_tokenize(self, corpus):
         for text in corpus:
-            words_with_offsets = tokenizer.backend_tokenizer.pre_tokenizer.pre_tokenize_str(text)
-            new_words = [word for word, offset in words_with_offsets]
-            for word in new_words:
+            words = text.split()  # or use nltk.word_tokenize(text)
+            for word in words:
                 self.word_freqs[word] += 1
 
 
@@ -110,6 +110,7 @@ class BPE:
         return splits
 
 
+
     def generate_tokens(self, corpus):
         print(f"Initial vocab length: {len(self.vocab)}")
         assert self.max_vocab_size > len(self.vocab), f"Maximum vocab size must be larger than initialized vocab size"
@@ -125,23 +126,25 @@ class BPE:
                     max_freq = freq
             if max_pair is None:
                 continue
+            self.merges[max_pair] = max_pair[0] + max_pair[1]
             splits = self.merge_pair(max_pair[0], max_pair[1], splits) # Updates splits with new merged token.
-        self.tokens = set(token for tokens in splits.values() for token in tokens)
+            self.tokens = list({word: split for word, split in splits.items()}.values())
+            flattened = [token for sublist in self.tokens for token in sublist]
+            self.tokens = flattened
 
 
 
-corpus = [
-    "This is the Hugging Face Course.",
-    "This chapter is about tokenization.",
-    "This section shows several tokenizer algorithms.",
-    "Hopefully, you will be able to understand how they are trained and generate tokens.",
-]
-bpe = BPE()
-vocab, tokens = bpe.tokenize(corpus)
-print(f"New tokens: {tokens}")
-bpe.set_vocab_length(20)
-vocab, tokens = bpe.tokenize(["This is not a token."])
-print(tokens)
+if __name__ == '__main__':
+    corpus = ("This is the Hugging Face Course. This chapter is about tokenization."
+         + "This section shows several tokenizer algorithms."
+         + "Hopefully, you will be able to understand how they are trained and generate tokens.")
+
+    bpe = BPE()
+    vocab, tokens = bpe.tokenize(corpus)
+    print(f"New tokens: {tokens}")
+    bpe.set_vocab_length(70)
+    vocab, tokens = bpe.tokenize(corpus)
+    print(tokens)
 
 
 
