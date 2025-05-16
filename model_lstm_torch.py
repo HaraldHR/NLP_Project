@@ -7,6 +7,7 @@ from DataProcessing import *  # Assuming ReadData is in DataProcessing.py
 import LSTM_search
 import copy
 from tqdm import tqdm
+from DataVisualization import LossPlotter
 
 import os
 
@@ -114,7 +115,7 @@ class LSTM(nn.Module):
 
 
 
-    def train_model(self, X_batches, Y_batches, num_epochs, learning_rate=0.001, best_loss_ever = 10000):
+    def train_model(self, X_train_batches, Y_train_batches, X_val_batches, Y_val_batches, num_epochs, learning_rate=0.001, best_loss_ever = 10000):
         output_size = self.fc.out_features
 
         
@@ -124,18 +125,24 @@ class LSTM(nn.Module):
 
         n = 0
 
+        loss_train = []
+        loss_val = []
+        epochs = []
+
+
         best_loss = best_loss_ever
         for epoch in tqdm(range(num_epochs)):
             epoch_loss = 0.0
             hidden = None
 
-            for i in range(X_batches.shape[0]):
+            epoch_loss = 0
+            for i in range(X_train_batches.shape[0]):
                 
                 #print(f"Batch: {i+1}")
-                X_batch = X_batches[i] # (seq_len, 1, input_size)
-                Y_batch = Y_batches[i]
+                X_batch = X_train_batches[i] # (seq_len, 1, input_size)
+                Y_batch = Y_train_batches[i]
                 
-                target_seq = torch.argmax(Y_batch, dim=2) # (seq_len,)
+                target_seq = torch.argmax(Y_batch, dim=2)
 
                 optimizer.zero_grad()
 
@@ -154,6 +161,7 @@ class LSTM(nn.Module):
 
 
                 loss = criterion(output_seq, target_seq) # cross entropy loss
+                epoch_loss += loss.item() # for average
                 loss.backward()
 
                 # Clip gradients to avoid exploding gradients
@@ -162,25 +170,50 @@ class LSTM(nn.Module):
                 optimizer.step()
 
                 if n == 0:
-                    smooth_loss = loss.item()
+                    smooth_loss_train = loss.item()
                 else:
-                    smooth_loss = 0.999 * smooth_loss + 0.001 * loss.item()
-                epoch_loss += smooth_loss
-                if smooth_loss < best_loss:
-                    best_loss = smooth_loss
+                    smooth_loss_train = 0.999 * smooth_loss_train + 0.001 * loss.item()
+                if smooth_loss_train < best_loss:
+                    best_loss = smooth_loss_train
                     
                     best_model_state_dict = self.state_dict()
 
                 if n % 500 == 0:
-                    print(f"Iteration [{n + 1}/{n}], Loss: {smooth_loss:.4f}")
+                    print(f"Iteration [{n + 1}/{n}], Loss: {smooth_loss_train:.4f}")
                     print(self.synth_text("A", self.char2ind, self.ind2char, seq_len=100))
-                n += 1
 
+                n += 1
+            
+            # check on validation set at the end of each epoch:
+            val_loss_sum = 0
+            for j in range(X_val_batches.shape[0]):
+                val_output, _ = self.forward(X_val_batches[j], None)
+                val_targets = torch.argmax(Y_val_batches[j], dim = 2)
+                val_output = val_output.view(-1, output_size)
+                val_targets = val_targets.view(-1)
+                val_loss = criterion(val_output, val_targets) # cross entropy loss
+                val_loss_sum += val_loss.item()
+            
+            train_loss_avg = epoch_loss / X_train_batches.shape[0]
+            val_loss_avg = val_loss_sum / X_val_batches.shape[0]
+            
+            
+            loss_train.append(train_loss_avg)
+            loss_val.append(val_loss_avg)
+            epochs.append(epoch)
+                    
+                    
+                
+
+
+
+
+            steps_for_plotting = torch.arange(0, n, 500)
             #avg_loss = epoch_loss / num_chunks
             print(f"Epoch {epoch + 1}/{num_epochs}")
             #print(f"Epoch [{epoch + 1}/{num_epochs}], Avg Loss: {avg_loss:.4f}")
 
-        return best_loss, best_model_state_dict
+        return best_loss, best_model_state_dict, epochs, loss_train, loss_val
 
 
 def preprocess_data():
@@ -228,25 +261,35 @@ def main():
     X_data, unique_chars = preprocess_data()
 
     X_train, X_test = TrainTestSplit(X_data, train_size=0.8)
-    X_batches, Y_batches = GetTrainBatches(X_train, seq_len=seq_len, batch_size=64)
     """
-    learning_rates = [0.01, 0.005]
+    X_train, X_val_batches = TrainValSplit(X_train, val_size = 0.2)
+
+    X_train_batches, Y_train_batches = GetBatches(X_train, seq_len=seq_len, batch_size=batch_size)
+
+    X_val_batches, Y_val_batches = GetBatches(X_val_batches, seq_len=seq_len, batch_size=batch_size) # Simply for input shape for the forwardpass, we make on big batch
+    X_val_batches = X_val_batches.squeeze(0)
+    Y_val_batches = Y_val_batches.squeeze(0) # Makin it only one batch, don't need the outer dimension.
+    """
+    
+    learning_rates = [0.01, 0.005, 0.001]
     hidden_dims = [100]
     batch_sizes = [64]
     LSTM_search.grid_search_lstm(X_train, unique_chars, learning_rates, hidden_dims, batch_sizes, num_epochs=3)
-    """
     
+    """
     # Initialize the LSTM model
     model = LSTM(input_size=input_size, hidden_size=hidden_size, unique_chars = unique_chars, output_size=output_size, num_layers=num_layers, batch_size = batch_size, seq_len = seq_len)
     
     # Train the model
-    best_loss, best_model_state_dict = model.train_model(X_batches, Y_batches, num_epochs, learning_rate=learning_rate, best_loss_ever = best_loss_ever)
+    best_loss, best_model_state_dict, epochs_for_plot, train_loss, val_loss = model.train_model(X_train_batches, Y_train_batches, X_val, Y_val, num_epochs, learning_rate=learning_rate, best_loss_ever = best_loss_ever)
     
     # Write best result to to files
     torch.save(best_model_state_dict, best_model_path)
     with open(best_loss_path, "w") as f:
         f.write(str(best_loss))
     print(f"Best loss after training: {best_loss:.4f}")
-    
+
+    LossPlotter.plot_losses(train_loss, val_loss, epochs_for_plot)
+    """
 if __name__ == '__main__':
     main()

@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 
+
 def ReadData():
     fid = open('shakespeare.txt', "r")
     book_data = fid.read()
@@ -25,13 +26,14 @@ def TrainTestSplit(X, train_size): # X is one-hot encoded, train_size is a fract
     n = X.shape[0]
     split_index = int(n * train_size)
     X_train = X[:split_index]
-    X_test = X[split_index]
+    X_test = X[split_index:]
     return X_train, X_test
 
 def TrainValSplit(X, val_size): # Simply for clearer naming
-    return TrainTestSplit(X, val_size)
+    X_train, X_val = TrainTestSplit(X, 1-val_size)
+    return X_train, X_val
 
-def GetTrainBatches(X, seq_len, batch_size):
+def GetBatches(X, seq_len, batch_size):
     total_len = len(X)
     num_full_batches = (total_len - 1) // (batch_size * seq_len)
 
