@@ -263,11 +263,11 @@ def main():
 
     X_val_batches, Y_val_batches = GetBatches(X_val, seq_len=seq_len, batch_size=batch_size) # Simply for input shape for the forwardpass, we make on big batch
 
-    """
-    learning_rates = [1e-5, 3e-5, 1e-4, 3e-4, 5e-4, 1e-3]
+    
+    learning_rates = [5e-3, 3e-3, 1e-3, 8e-4]
     seq_lengths = [25, 50, 75, 100]
     batch_sizes = [16, 32, 64, 128]
-    LSTM_search.grid_search_lstm(X_train, unique_chars, learning_rates, seq_lengths, batch_sizes, num_epochs=10)
+    LSTM_search.grid_search_lstm(X_train, X_val, unique_chars, learning_rates, seq_lengths, batch_sizes, num_epochs=10)
     """
     
     # Initialize the LSTM model
@@ -283,6 +283,6 @@ def main():
         print(f"Best loss after training: {best_loss_after:.4f}")
 
     LossPlotter.plot_losses(train_loss, val_loss, epochs_for_plot)
-
+    """
 if __name__ == '__main__':
     main()
