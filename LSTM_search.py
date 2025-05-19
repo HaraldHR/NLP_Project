@@ -16,11 +16,10 @@ def grid_search_lstm(X_input, unique_chars, learning_rates, hidden_dims, batch_s
 
     X_train, X_val = TrainValSplit(X_input, 0.2)
     
-    total_iteration = len(learning_rates) * len(hidden_dims) * len(batch_sizes)
     i = 0
     for lr in  tqdm(learning_rates, desc="LR loop"):
-        for dim in tqdm(hidden_dims, desc="Hidden dims loop"):
-            for batch_size in tqdm(batch_sizes, desc="Batch size loop"):
+        for dim in hidden_dims:
+            for batch_size in batch_sizes:
                 #print(f"evaluating learning rate: {lr}, hidden dim: {dim} and dropout: {dropout}")
                 
                 X_train_batches, Y_train_batches = GetBatches(X_train.clone(), seq_len, batch_size)
