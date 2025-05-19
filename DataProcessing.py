@@ -31,9 +31,6 @@ def TrainValTestSplit(X, train_size=0.8, val_size=0.1): # X is one-hot encoded, 
     X_test = X[split_index_val:]
     return X_train, X_val, X_test
 
-def TrainValSplit(X, val_size): # Simply for clearer naming
-    X_train, X_val = TrainTestSplit(X, 1-val_size)
-    return X_train, X_val
 
 def GetBatches(X, seq_len, batch_size):
     total_len = len(X)
