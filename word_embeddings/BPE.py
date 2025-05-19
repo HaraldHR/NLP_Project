@@ -34,6 +34,8 @@ class BPE:
         self.pre_tokenize([text] if isinstance(text, str) else text) # Calculates word frequencies.
         self.create_vocab()
         self.generate_tokens(text)
+        self.tokens.append("<space>")
+        self.tokens.append("<|endoftext|>")
 
         return self.vocab, self.tokens
 
@@ -70,7 +72,7 @@ class BPE:
                 if char not in self.vocab:
                     self.vocab.append(char)
         self.vocab.sort()
-        self.vocab = ["<|endoftext|>"] + self.vocab.copy()
+        self.vocab = ["<|endoftext|>", "<space>"] + self.vocab.copy()
 
 
 
@@ -103,7 +105,8 @@ class BPE:
             while i < len(split) - 1:
                 if split[i] == a and split[i + 1] == b: # We find our match, then merge it.
                     split = split[:i] + [a + b] + split[i + 2:]
-                    self.vocab.append(a+b)
+                    if (a+b) not in self.vocab:
+                        self.vocab.append(a+b)
                 else:
                     i += 1
             splits[word] = split # assigns the new list of tokens to the word.
@@ -140,11 +143,9 @@ if __name__ == '__main__':
          + "Hopefully, you will be able to understand how they are trained and generate tokens.")
 
     bpe = BPE()
-    vocab, tokens = bpe.tokenize(corpus)
-    print(f"New tokens: {tokens}")
     bpe.set_vocab_length(70)
     vocab, tokens = bpe.tokenize(corpus)
-    print(tokens)
+    print(f"Tokens: {tokens}")
 
 
 

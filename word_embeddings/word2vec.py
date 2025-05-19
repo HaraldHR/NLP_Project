@@ -346,6 +346,9 @@ class Word2Vec(object):
                 f.write('\n')
         f.close()
 
+    def write_token_data_to_file():
+
+
 
 
 if __name__ == '__main__':
@@ -361,6 +364,7 @@ if __name__ == '__main__':
     print(f"Processed {w2v.tokens_processed} tokens")
     print(f"Found {len(w2v.word2id)} unique words")
     w2v.train()
+    print(w2v.tokens())
 
 
 

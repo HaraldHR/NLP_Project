@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import torch.nn.functional as F
+from torch.fx.experimental.unification.utils import freeze
+
 from DataProcessing import *  # Assuming ReadData is in DataProcessing.py
 import LSTM_search
 import copy
@@ -12,41 +14,59 @@ from DataVisualization import LossPlotter
 import os
 
 class LSTM(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, unique_chars, batch_size, seq_len,  num_layers=1, dropout=0.2):
+    def __init__(self, input_size, hidden_size, output_size, unique_chars, batch_size, seq_len, num_layers=1, dropout=0.2):
         super(LSTM, self).__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
 
-        self.char2ind = {char: idx for idx, char in enumerate(unique_chars)}
-        self.ind2char = {idx: char for idx, char in enumerate(unique_chars)}
+        self.word2id = None
+        self.id2word = None
+        self.id2embeds = {}
         self.batch_size = batch_size
         self.seq_len = seq_len
+        self.vocab_size = None
         # Define the LSTM layer
         self.lstm = nn.LSTM(
             input_size=input_size,
             hidden_size=hidden_size,
             num_layers=num_layers,
-            batch_first=False,  # input shape (seq_len, batch, input_size)
+            batch_first=True,  # input shape (seq_len, batch, input_size)
             dropout=dropout     # Dropout between layers (only for num_layers > 1)
         )
+        word2id, id2word, id2embedding = get_embeddings('./word_embeddings/vectors_bpe_500.txt')
+        self.word2id = word2id
+        self.id2word = id2word
+        self.id2embeds = id2embedding
+        self.vocab_size = len(word2id)
+        print(f"Vocab size is: {self.vocab_size}")
+        emb_matrix = get_embed_tensor(self.id2embeds)
+        self.embedding = torch.nn.Embedding.from_pretrained(emb_matrix, freeze=True)
 
         # Define the fully connected layer
+
         self.fc = nn.Linear(hidden_size, output_size)
+
+
 
     def forward(self, input_seq, hidden=None):
         # Pass the input through the LSTM layer
         lstm_out, hidden = self.lstm(input_seq, hidden)
         # Apply the fully connected layer to the output of the LSTM
         output = self.fc(lstm_out)  # (seq_len, batch, output_size)
+        #assert output.shape == (self.batch_size, self.seq_len, self.vocab_size)
         
         return output, hidden
+
+
 
     def init_hidden(self, batch_size):
         # Initialize hidden state and cell state (h0, c0)
         h0 = torch.zeros(self.num_layers, batch_size, self.hidden_size)
         c0 = torch.zeros(self.num_layers, batch_size, self.hidden_size)
         return (h0, c0)
-    
+
+
+
     def nucleus_sampling(self, probs, p=0.9):
         sorted_probs, sorted_indices = torch.sort(probs, descending=True)
         # Sum up probs
@@ -68,21 +88,23 @@ class LSTM(nn.Module):
         # Sample from top-p
         selected_idx = torch.multinomial(top_probs, 1)
         return top_indices.squeeze()[selected_idx].item()
-    
+
+
+
     def temperature_sampling(self, output, temp=0.8):
         probs = F.softmax(output / temp, dim=0)
         next_char_id = torch.multinomial(probs, 1).item() # samples from distribution.
         return next_char_id
 
-    def synth_text(self, start_char, char2ind, ind2char, seq_len=100):
+
+
+    def synth_text(self, start_token, word2id, in2word, seq_len=100):
         self.eval()  # Set the model to evaluation mode
 
         # Convert start_char to one-hot encoding
-        start_idx = char2ind[start_char]
-        input_char = torch.tensor([start_idx], dtype=torch.long).unsqueeze(0)  # shape (1, 1)
+        start_idx = word2id[start_token]
 
-        # One-hot encode the character
-        input_one_hot = F.one_hot(input_char, num_classes=len(char2ind)).float()
+
 
         # Initialize hidden state
         hidden = self.init_hidden(batch_size=1)
@@ -115,20 +137,23 @@ class LSTM(nn.Module):
 
 
 
-    def train_model(self, X_train_batches, Y_train_batches, X_val_batches, Y_val_batches, num_epochs, learning_rate=0.001, best_loss_ever = 10000):
+    def train_model(self, X_train_batches, Y_train_batches, X_val_batches, Y_val_batches,
+                    num_epochs, learning_rate=0.001, best_loss_ever = 10000,
+                    use_embeddings=False, freeze_embeddings=True):
+
         output_size = self.fc.out_features
 
-        
         best_model_state_dict = {}
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(self.parameters(), lr=learning_rate)
 
         n = 0
 
+        X_val_batches = self.embedding(X_val_batches)
+
         loss_train = []
         loss_val = []
         epochs = []
-
 
         best_loss = best_loss_ever
         for epoch in tqdm(range(num_epochs)):
@@ -141,8 +166,12 @@ class LSTM(nn.Module):
                 #print(f"Batch: {i+1}")
                 X_batch = X_train_batches[i] # (seq_len, 1, input_size)
                 Y_batch = Y_train_batches[i]
-                
-                target_seq = torch.argmax(Y_batch, dim=2)
+
+                assert X_batch.shape == (self.batch_size, self.seq_len), f"X_batch is of incorrect shape: {X_batch.shape}"
+
+                X_batch = self.embedding(X_batch)
+                target_seq = Y_batch
+                assert target_seq.shape == (self.batch_size, self.seq_len)
 
                 optimizer.zero_grad()
 
@@ -178,17 +207,23 @@ class LSTM(nn.Module):
                     
                     best_model_state_dict = self.state_dict()
 
+                '''
                 if n % 500 == 0:
                     print(f"Iteration [{n + 1}/{n}], Loss: {smooth_loss_train:.4f}")
                     print(self.synth_text("A", self.char2ind, self.ind2char, seq_len=100))
-
+                '''
                 n += 1
+
             
             # check on validation set at the end of each epoch:
             val_loss_sum = 0
             for j in range(X_val_batches.shape[0]):
                 val_output, _ = self.forward(X_val_batches[j], None)
-                val_targets = torch.argmax(Y_val_batches[j], dim = 2)
+
+                if use_embeddings:
+                    val_targets = Y_val_batches[j]
+                else:
+                    val_targets = torch.argmax(Y_val_batches[j], dim = 2)
                 val_output = val_output.view(-1, output_size)
                 val_targets = val_targets.view(-1)
                 val_loss = criterion(val_output, val_targets) # cross entropy loss
@@ -196,17 +231,13 @@ class LSTM(nn.Module):
             
             train_loss_avg = epoch_loss / X_train_batches.shape[0]
             val_loss_avg = val_loss_sum / X_val_batches.shape[0]
+            print(train_loss_avg)
+            print(val_loss_avg)
             
             
             loss_train.append(train_loss_avg)
             loss_val.append(val_loss_avg)
             epochs.append(epoch)
-                    
-                    
-                
-
-
-
 
             steps_for_plotting = torch.arange(0, n, 500)
             #avg_loss = epoch_loss / num_chunks
@@ -216,27 +247,99 @@ class LSTM(nn.Module):
         return best_loss, best_model_state_dict, epochs, loss_train, loss_val
 
 
-def preprocess_data():
+
+def preprocess_data(type='chars'):
     # Get the raw data and unique characters
+    token_data_file = '' # the data file containing the tokenized data.
     data, unique_chars = ReadData()
     
     # Create a mapping of character to index
-    char2ind = {char: idx for idx, char in enumerate(unique_chars)}
-    ind2char = {idx: char for idx, char in enumerate(unique_chars)}
+    word2id, id2word, id2embedding = get_embeddings('./word_embeddings/vectors_bpe_500.txt')
 
-    # Convert data to a sequence of indices
-    data_indices = [char2ind[char] for char in data]
+    if type=='tokens':
+        # Tokenizing
+        vocab, tokens = tokenize_data(data, vocab_size=100)
+
+        # Convert data to a sequence of indices
+        data_indices = get_ids(tokens, word2id)
+    else:
+        char2ind = {char: idx for idx, char in enumerate(unique_chars)}
+        ind2char = {idx: char for idx, char in enumerate(unique_chars)}
+        data_indices = [char2ind[char] for char in data]
 
     # Convert indices to tensor
     X_input = torch.tensor(data_indices, dtype=torch.long)
 
-    # One-hot encode the data
-    X_one_hot = F.one_hot(X_input, num_classes=len(unique_chars)).float()
+    return X_input, vocab
 
-    return X_one_hot, unique_chars
+
 
 
 def main():
+
+    # Embedding model:
+
+    word2id, id2word, id2embedding = get_embeddings('./word_embeddings/vectors_bpe_500.txt')
+    embed_mat = get_embed_tensor(id2embedding)
+
+    embed_dim = id2embedding[0].shape[0]
+
+    # Parameters
+    input_size = embed_dim  # Modify based on unique_chars length
+    hidden_size = 100
+    output_size = len(word2id.keys())  # Modify based on unique_chars length
+    num_layers = 2
+    seq_len = 75
+    num_epochs = 50
+    learning_rate = 0.005
+    batch_size = 32
+    vocab_size = len(word2id)
+
+    best_model_path = "best_lstm_model.pth"
+    best_loss_path = "best_loss_lstm.txt"
+
+    # Load previous best loss if file exists
+    if os.path.exists("best_loss_lstm.txt"):
+        with open("best_loss_lstm.txt", 'r') as f:
+            best_loss_ever = float(f.read().strip())
+    else:
+        best_loss_ever = float('inf')  # If not found, use infinity as the initial best
+
+    # Preprocess data
+    X_data, unique_chars = preprocess_data(type='tokens')
+
+    X_train, X_test = TrainTestSplit(X_data, train_size=0.8)
+    X_train, X_val_batches = TrainValSplit(X_train, val_size = 0.2)
+
+    X_train_batches, Y_train_batches = GetBatches(X_train, seq_len=seq_len, batch_size=batch_size, use_embeddings=True)
+    X_val_batches, Y_val_batches = GetBatches(X_val_batches, seq_len=seq_len, batch_size=batch_size, use_embeddings=True) # Simply for input shape for the forwardpass, we make on big batch
+    X_val_batches = X_val_batches
+    Y_val_batches = Y_val_batches # Makin it only one batch, don't need the outer dimension.
+    """
+
+    learning_rates = [0.01, 0.005, 0.001]
+    hidden_dims = [100]
+    batch_sizes = [64]
+    LSTM_search.grid_search_lstm(X_train, unique_chars, learning_rates, hidden_dims, batch_sizes, num_epochs=3)
+
+    """
+    # Initialize the LSTM model
+    model = LSTM(input_size=input_size, hidden_size=hidden_size, unique_chars = unique_chars, output_size=output_size, num_layers=num_layers, batch_size = batch_size, seq_len = seq_len)
+
+    # Train the model
+    best_loss, best_model_state_dict, epochs_for_plot, train_loss, val_loss = model.train_model(X_train_batches, Y_train_batches, X_val_batches, Y_val_batches, num_epochs, learning_rate=learning_rate, best_loss_ever=best_loss_ever, use_embeddings=True, freeze_embeddings=False)
+
+    # Write best result to files
+    torch.save(best_model_state_dict, best_model_path)
+    with open(best_loss_path, "w") as f:
+        f.write(str(best_loss))
+    print(f"Best loss after training: {best_loss:.4f}")
+
+    LossPlotter.plot_losses(train_loss, val_loss, epochs_for_plot)
+
+
+    '''
+    Regular Model:
     # Parameters
     input_size = 65  # Modify based on unique_chars length
     hidden_size = 100
@@ -261,7 +364,7 @@ def main():
     X_data, unique_chars = preprocess_data()
 
     X_train, X_test = TrainTestSplit(X_data, train_size=0.8)
-    """
+    
     X_train, X_val_batches = TrainValSplit(X_train, val_size = 0.2)
 
     X_train_batches, Y_train_batches = GetBatches(X_train, seq_len=seq_len, batch_size=batch_size)
@@ -269,14 +372,12 @@ def main():
     X_val_batches, Y_val_batches = GetBatches(X_val_batches, seq_len=seq_len, batch_size=batch_size) # Simply for input shape for the forwardpass, we make on big batch
     X_val_batches = X_val_batches.squeeze(0)
     Y_val_batches = Y_val_batches.squeeze(0) # Makin it only one batch, don't need the outer dimension.
-    """
     
     learning_rates = [0.01, 0.005, 0.001]
     hidden_dims = [100]
     batch_sizes = [64]
     LSTM_search.grid_search_lstm(X_train, unique_chars, learning_rates, hidden_dims, batch_sizes, num_epochs=3)
     
-    """
     # Initialize the LSTM model
     model = LSTM(input_size=input_size, hidden_size=hidden_size, unique_chars = unique_chars, output_size=output_size, num_layers=num_layers, batch_size = batch_size, seq_len = seq_len)
     
@@ -290,6 +391,8 @@ def main():
     print(f"Best loss after training: {best_loss:.4f}")
 
     LossPlotter.plot_losses(train_loss, val_loss, epochs_for_plot)
-    """
+    '''
+
+    
 if __name__ == '__main__':
     main()

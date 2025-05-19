@@ -169,7 +169,9 @@ class LSTM:
         loss.backward()
         # Clip gradients
         torch.nn.utils.clip_grad_norm_([*self.W_all.values(), *self.U_all.values(), *self.B.values(), self.V, self.C], 5.0)
-    
+
+
+
     def synth_text(self, x0, n, ind_to_char, char_to_ind, rng, h0 = None):
         '''
         Computes the forward pass of the LSTM model to make a prediction.
