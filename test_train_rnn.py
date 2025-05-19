@@ -14,7 +14,7 @@ from synthesizer import synthesize_text
 
 
 # Load the data
-data, unique_chars = ReadData()
+data, unique_chars = ReadData("goblet_book.txt")
 char_to_ind, ind_to_char = GetDicts(unique_chars)
 X = ConvertToOneHot(data, char_to_ind)
 
@@ -34,7 +34,7 @@ input_size = len(char_to_ind)
 hidden_size = 128
 output_size = len(char_to_ind)
 num_layers = 3
-num_epochs = 3
+num_epochs = 4
 
 
 model = RNN(input_size, hidden_size, output_size, num_layers)
@@ -57,7 +57,7 @@ initial_char = 'H'
 x0 = np.zeros(len(char_to_ind), dtype=np.float32)
 x0[char_to_ind[initial_char]] = 1.0
 
-text = synthesize_text(model, x0, 200, ind_to_char, char_to_ind)
+text = synthesize_text(model, x0, 10000, ind_to_char, char_to_ind)
 
 print(text)
 
