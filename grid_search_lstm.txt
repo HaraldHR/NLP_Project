@@ -1,0 +1,6 @@
+Hidden dim: 100, Learning rate: 0.01, Batch size: 64, Validation Loss: 2.0038290305571125
+Hidden dim: 100, Learning rate: 0.005, Batch size: 64, Validation Loss: 2.0297148661179976
+
+-------Epochs: 3-------
+Hidden dim: 100, Learning rate: 0.01, Batch size: 64, Validation Loss: 2.001567322557623
+Hidden dim: 100, Learning rate: 0.005, Batch size: 64, Validation Loss: 2.117228299921209
