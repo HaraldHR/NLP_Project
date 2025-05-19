@@ -131,7 +131,7 @@ class LSTM(nn.Module):
 
 
         best_loss = best_loss_ever
-        for epoch in tqdm(range(num_epochs)):
+        for epoch in range(num_epochs):
             epoch_loss = 0.0
             hidden = None
 
@@ -271,10 +271,10 @@ def main():
     Y_val_batches = Y_val_batches.squeeze(0) # Makin it only one batch, don't need the outer dimension.
     """
     
-    learning_rates = [0.01, 0.005, 0.001]
-    hidden_dims = [128, 256]
-    batch_sizes = [32, 64, 128]
-    LSTM_search.grid_search_lstm(X_train, unique_chars, learning_rates, hidden_dims, batch_sizes, num_epochs=10)
+    learning_rates = [1e-5, 3e-5, 1e-4, 3e-4, 5e-4, 1e-3]
+    hidden_dims = [64, 128, 256, 512]
+    batch_sizes = [16, 32, 64, 128]
+    LSTM_search.grid_search_lstm(X_train, unique_chars, learning_rates, hidden_dims, batch_sizes, num_epochs=12)
     
     """
     # Initialize the LSTM model
