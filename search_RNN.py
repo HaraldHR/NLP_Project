@@ -8,7 +8,7 @@ import datetime
 from tqdm import tqdm
 import torch.nn.functional as F
 from model_RNN import RNN
-from DataProcessing import ReadData, GetDicts, ConvertToOneHot, TrainValSplit, GetBatches, TrainTestSplit
+from DataProcessing import ReadData, GetDicts, ConvertToOneHot, TrainValSplit, GetBatches, TrainValTestSplit
 
 def grid_search_rnn(X_input, unique_chars, learning_rates, seq_lengths, batch_sizes, num_epochs=10, hidden_dim=128):
     results = []
@@ -94,9 +94,8 @@ X_data, unique_chars = preprocess_data()
 
 char_to_ind, ind_to_char = GetDicts(unique_chars)
 
+X_train, X_val, X_test = TrainValTestSplit(X_data, 0.8, 0.1)
 
-X_train, X_test = TrainTestSplit(X_data, train_size=0.8)
-X_train, X_val = TrainValSplit(X_data, val_size=0.2)
 
 X_train_batches, Y_train_batches = GetBatches(X_train, seq_len=50, batch_size=64)
 

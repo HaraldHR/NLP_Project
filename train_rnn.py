@@ -1,12 +1,13 @@
 
 
 
-from DataProcessing import ReadData, GetDicts, ConvertToOneHot, TrainTestSplit, TrainValSplit, GetBatches
+from DataProcessing import ReadData, GetDicts, ConvertToOneHot, TrainValTestSplit, TrainValSplit, GetBatches
 import torch.nn.functional as F
 from DataVisualization import LossPlotter
+from model_evaluation import *
 
 
-
+import pickle
 import torch
 
 import numpy as np
@@ -21,8 +22,10 @@ def preprocess_data():
     data, unique_chars = ReadData("shakespeare.txt")
 
     # Create a mapping of character to index
-    char2ind = {char: idx for idx, char in enumerate(unique_chars)}
-    ind2char = {idx: char for idx, char in enumerate(unique_chars)}
+    with open("dicts.pkl", "rb") as f:
+        vocab = pickle.load(f)
+        char2ind = vocab['char2ind']
+        ind2char = vocab['ind2char']
 
     # Convert data to a sequence of indices
     data_indices = [char2ind[char] for char in data]
@@ -37,16 +40,19 @@ def preprocess_data():
 
 X_data, unique_chars = preprocess_data()
 
+with open("dicts.pkl", "rb") as f:
+    vocab = pickle.load(f)
+    char2ind = vocab['char2ind']
+    ind2char = vocab['ind2char']
 
-char_to_ind, ind_to_char = GetDicts(unique_chars)
 
-
-X_train, X_test = TrainTestSplit(X_data, train_size=0.8)
-X_train, X_val = TrainValSplit(X_data, val_size=0.2)
+X_train, X_val, X_test = TrainValTestSplit(X_data, 0.8, 0.1)
 
 X_train_batches, Y_train_batches = GetBatches(X_train, seq_len=50, batch_size=32)
 
 X_val_batches, Y_val_batches = GetBatches(X_val, seq_len=50, batch_size=32)
+data_str, _ = ReadData("shakespeare.txt")
+processor = TextProcessor(data_str)
 
 
 
@@ -63,7 +69,7 @@ loss, loss_val, epochs, best_loss, model_state = model.train_model(
     Y_train_batches,
     X_val_batches,
     Y_val_batches,
-    num_epochs=10,
+    num_epochs=3,
     learning_rate=0.001,
     best_loss_ever=10000  # Doesn't matter in search
 )
@@ -71,8 +77,10 @@ loss, loss_val, epochs, best_loss, model_state = model.train_model(
 
 torch.save(model_state, "best_rnn_model.pth")
 start_char = 'H'
-x0 = F.one_hot(torch.tensor([char_to_ind[start_char]]), num_classes=len(char_to_ind)).float()[0]
-generated = model.synthesize_text(x0, n=1000, ind_to_char=ind_to_char, char_to_ind=char_to_ind)
+x0 = F.one_hot(torch.tensor([char2ind[start_char]]), num_classes=len(char2ind)).float()[0]
+generated = model.synthesize_text(x0, n=1000, ind_to_char=ind2char, char_to_ind=char2ind)
+run_text_quality_tests(generated, processor, "No Model, Just Test")
+
 
 print("Generated Text:")
 print(generated)
