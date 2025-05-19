@@ -158,11 +158,11 @@ batches = GetTrainBatches(X, 25)
 print(batches[0][0])
 """
 
-file = "./word_embeddings/vectors_bpe_500.txt"
+file = "./word_embeddings/vectors.txt"
 word2id, id2word, id2embedding = get_embeddings(file)
 book_data, _ = ReadData()
-vocab, tokens = tokenize_data(book_data, vocab_size=100)
-ids = get_ids(tokens, word2id)
+vocab, tokens, tokenized = tokenize_data(book_data, vocab_size=100)
+ids = get_ids(tokenized, word2id)
 X, Y = GetBatches(ids, 25, 32, use_embeddings=True)
 print(X[1].shape)
 print(Y[1].dtype)
