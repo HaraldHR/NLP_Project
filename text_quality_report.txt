@@ -1,0 +1,11 @@
+=== Text Quality Evaluation ===
+
+Tests run at 2025-05-19 16:45:36.865877
+Model used: No Model, Just Test
+Synthesized Text:
+MMdV;yVM;oS
+Mp;VSH;yVSFp;Hb; SuM;uDP;yVMb;H,Fy;bD,
+
+Correctly Spelt Word Fraction: 0.0769
+2-Gram Match Fraction: 0.1224
+3-Gram Match Fraction: 0.0208
