@@ -30,10 +30,10 @@ class LSTM(nn.Module):
             input_size=input_size,
             hidden_size=hidden_size,
             num_layers=num_layers,
-            batch_first=True,  # input shape (seq_len, batch, input_size)
+            batch_first=True,  # input shape (batch, seq_len, input_size)
             dropout=dropout     # Dropout between layers (only for num_layers > 1)
         )
-        word2id, id2word, id2embedding = get_embeddings('./word_embeddings/vectors_bpe_500.txt')
+        word2id, id2word, id2embedding = get_embeddings('./word_embeddings/vectors.txt')
         self.word2id = word2id
         self.id2word = id2word
         self.id2embeds = id2embedding
@@ -123,6 +123,7 @@ class LSTM(nn.Module):
             #next_char_idx = self.nucleus_sampling(output_probs) # Nucleus Sampling
             #next_char_idx = self.temperature_sampling(output.squeeze())
 
+            # <space>
             # Get the next character
             next_char = ind2char[next_char_idx]
             generated_text.append(next_char)
@@ -138,8 +139,7 @@ class LSTM(nn.Module):
 
 
     def train_model(self, X_train_batches, Y_train_batches, X_val_batches, Y_val_batches,
-                    num_epochs, learning_rate=0.001, best_loss_ever = 10000,
-                    use_embeddings=False, freeze_embeddings=True):
+                    num_epochs, learning_rate=0.001, best_loss_ever = 10000):
 
         output_size = self.fc.out_features
 
@@ -220,10 +220,7 @@ class LSTM(nn.Module):
             for j in range(X_val_batches.shape[0]):
                 val_output, _ = self.forward(X_val_batches[j], None)
 
-                if use_embeddings:
-                    val_targets = Y_val_batches[j]
-                else:
-                    val_targets = torch.argmax(Y_val_batches[j], dim = 2)
+                val_targets = Y_val_batches[j]
                 val_output = val_output.view(-1, output_size)
                 val_targets = val_targets.view(-1)
                 val_loss = criterion(val_output, val_targets) # cross entropy loss
