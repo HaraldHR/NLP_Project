@@ -226,3 +226,22 @@ Hidden dim: 512, Learning rate: 0.001, Batch size: 16, Validation Loss: 1.726548
 Hidden dim: 512, Learning rate: 0.001, Batch size: 32, Validation Loss: 1.7294508648348283 x
 Hidden dim: 512, Learning rate: 0.001, Batch size: 64, Validation Loss: 1.7409076430580832
 Hidden dim: 512, Learning rate: 0.001, Batch size: 128, Validation Loss: 1.8206324179967244
+
+
+-------Epochs: 10-------
+Sequence Length: 25, Learning rate: 0.005, Batch size: 16, Validation Loss: 1.650754535369736
+Sequence Length: 25, Learning rate: 0.005, Batch size: 32, Validation Loss: 1.6763926066940638
+Sequence Length: 25, Learning rate: 0.005, Batch size: 64, Validation Loss: 1.6652378724968953
+Sequence Length: 25, Learning rate: 0.005, Batch size: 128, Validation Loss: 1.6690692901611328
+Sequence Length: 50, Learning rate: 0.005, Batch size: 16, Validation Loss: 1.5747939108087003
+Sequence Length: 50, Learning rate: 0.005, Batch size: 32, Validation Loss: 1.5776538036871648
+Sequence Length: 50, Learning rate: 0.005, Batch size: 64, Validation Loss: 1.61215039211161
+Sequence Length: 50, Learning rate: 0.005, Batch size: 128, Validation Loss: 1.7219763222862692
+Sequence Length: 75, Learning rate: 0.005, Batch size: 16, Validation Loss: 1.5685907576395117
+Sequence Length: 75, Learning rate: 0.005, Batch size: 32, Validation Loss: 1.604152394377667
+Sequence Length: 75, Learning rate: 0.005, Batch size: 64, Validation Loss: 1.6637639999389648
+
+-------Epochs: 10-------
+
+-------Epochs: 10-------
+Sequence Length: 25, Learning rate: 0.001, Batch size: 16, Validation Loss: 1.6691979427131818
