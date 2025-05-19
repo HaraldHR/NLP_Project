@@ -240,3 +240,8 @@ Sequence Length: 50, Learning rate: 0.005, Batch size: 128, Validation Loss: 1.7
 Sequence Length: 75, Learning rate: 0.005, Batch size: 16, Validation Loss: 1.5685907576395117
 Sequence Length: 75, Learning rate: 0.005, Batch size: 32, Validation Loss: 1.604152394377667
 Sequence Length: 75, Learning rate: 0.005, Batch size: 64, Validation Loss: 1.6637639999389648
+
+-------Epochs: 10-------
+
+-------Epochs: 10-------
+Sequence Length: 25, Learning rate: 0.001, Batch size: 16, Validation Loss: 1.6691979427131818

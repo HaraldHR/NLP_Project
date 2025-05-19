@@ -8,17 +8,18 @@ import LSTM_search
 import copy
 from tqdm import tqdm
 from DataVisualization import LossPlotter
+import pickle
 
 import os
 
 class LSTM(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, unique_chars, batch_size, seq_len,  num_layers=1, dropout=0.2):
+    def __init__(self, input_size, hidden_size, output_size, unique_chars, batch_size, seq_len, char2ind, ind2char, num_layers=1, dropout=0.2):
         super(LSTM, self).__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
 
-        self.char2ind = {char: idx for idx, char in enumerate(unique_chars)}
-        self.ind2char = {idx: char for idx, char in enumerate(unique_chars)}
+        self.char2ind = char2ind
+        self.ind2char = ind2char
         self.batch_size = batch_size
         self.seq_len = seq_len
         # Define the LSTM layer
@@ -74,15 +75,15 @@ class LSTM(nn.Module):
         next_char_id = torch.multinomial(probs, 1).item() # samples from distribution.
         return next_char_id
 
-    def synth_text(self, start_char, char2ind, ind2char, seq_len=100):
+    def synth_text(self, start_char, seq_len=100):
         self.eval()  # Set the model to evaluation mode
 
         # Convert start_char to one-hot encoding
-        start_idx = char2ind[start_char]
+        start_idx = self.char2ind[start_char]
         input_char = torch.tensor([start_idx], dtype=torch.long).unsqueeze(0)  # shape (1, 1)
 
         # One-hot encode the character
-        input_one_hot = F.one_hot(input_char, num_classes=len(char2ind)).float()
+        input_one_hot = F.one_hot(input_char, num_classes=len(self.char2ind)).float()
 
         # Initialize hidden state
         hidden = self.init_hidden(batch_size=1)
@@ -102,12 +103,12 @@ class LSTM(nn.Module):
             #next_char_idx = self.temperature_sampling(output.squeeze())
 
             # Get the next character
-            next_char = ind2char[next_char_idx]
+            next_char = self.ind2char[next_char_idx]
             generated_text.append(next_char)
 
             # Update the input for the next time step: use the predicted character
             input_char = torch.tensor([next_char_idx], dtype=torch.long).unsqueeze(0)
-            input_one_hot = F.one_hot(input_char, num_classes=len(char2ind)).float()
+            input_one_hot = F.one_hot(input_char, num_classes=len(self.char2ind)).float()
 
         self.train()
 
@@ -213,13 +214,9 @@ class LSTM(nn.Module):
         return best_loss, best_model_state_dict, epochs, loss_train, loss_val
 
 
-def preprocess_data():
+def preprocess_data(char2ind, ind2char):
     # Get the raw data and unique characters
-    data, unique_chars = ReadData()
-    
-    # Create a mapping of character to index
-    char2ind = {char: idx for idx, char in enumerate(unique_chars)}
-    ind2char = {idx: char for idx, char in enumerate(unique_chars)}
+    data, unique_chars = ReadData("shakespeare.txt")
 
     # Convert data to a sequence of indices
     data_indices = [char2ind[char] for char in data]
@@ -240,9 +237,14 @@ def main():
     output_size = 65  # Modify based on unique_chars length
     num_layers = 2
     seq_len = 50
-    num_epochs = 40
+    num_epochs = 3
     learning_rate = 0.001
     batch_size = 32
+
+    with open("dicts.pkl", "rb") as f:
+        vocab = pickle.load(f)
+        char2ind = vocab['char2ind']
+        ind2char = vocab['ind2char']
 
     best_model_path = "best_lstm_model.pth"
     best_loss_path = "best_loss_lstm.txt"
@@ -255,7 +257,7 @@ def main():
         best_loss_ever = float('inf')  # If not found, use infinity as the initial best
     
     # Preprocess data
-    X_data, unique_chars = preprocess_data()
+    X_data, unique_chars = preprocess_data(char2ind, ind2char)
 
     X_train, X_val, X_test = TrainValTestSplit(X_data)
 
@@ -263,15 +265,14 @@ def main():
 
     X_val_batches, Y_val_batches = GetBatches(X_val, seq_len=seq_len, batch_size=batch_size) # Simply for input shape for the forwardpass, we make on big batch
 
-    
-    learning_rates = [5e-3, 3e-3, 1e-3, 8e-4]
+    learning_rates = [1e-3, 3e-3, 8e-4, 6e-4, 3e-4 ,1e-4, 8e-5, 3e-5, 1e-5]
     seq_lengths = [25, 50, 75, 100]
     batch_sizes = [16, 32, 64, 128]
-    LSTM_search.grid_search_lstm(X_train, X_val, unique_chars, learning_rates, seq_lengths, batch_sizes, num_epochs=10)
-    """
+    LSTM_search.grid_search_lstm(X_train, X_val, unique_chars, learning_rates, seq_lengths, batch_sizes, num_epochs=10, char2ind=char2ind, ind2char=ind2char)
     
+    """
     # Initialize the LSTM model
-    model = LSTM(input_size=input_size, hidden_size=hidden_size, unique_chars = unique_chars, output_size=output_size, num_layers=num_layers, batch_size = batch_size, seq_len = seq_len)
+    model = LSTM(input_size=input_size, hidden_size=hidden_size, unique_chars = unique_chars, output_size=output_size, num_layers=num_layers, batch_size = batch_size, seq_len = seq_len, char2ind=char2ind, ind2char=ind2char)
     
     # Train the model
     best_loss_after, best_model_state_dict, epochs_for_plot, train_loss, val_loss = model.train_model(X_train_batches, Y_train_batches, X_val_batches, Y_val_batches, num_epochs, learning_rate=learning_rate, best_loss_ever = best_loss_ever)
