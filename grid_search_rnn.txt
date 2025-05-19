@@ -1,0 +1,36 @@
+
+------- Epochs: 3 -------
+Hidden dim: 100, Learning rate: 0.01, Batch size: 64, Validation Loss: 2.126068045876243
+Hidden dim: 100, Learning rate: 0.005, Batch size: 64, Validation Loss: 1.9947967659343373
+Hidden dim: 100, Learning rate: 0.001, Batch size: 64, Validation Loss: 2.1871989076787774
+
+------- Epochs: 3 -------
+Hidden dim: 64, Learning rate: 1e-05, Batch size: 32, Validation Loss: 3.419363618970991
+Hidden dim: 64, Learning rate: 1e-05, Batch size: 64, Validation Loss: 3.741918217052113
+Hidden dim: 128, Learning rate: 1e-05, Batch size: 32, Validation Loss: 3.339469797976382
+Hidden dim: 128, Learning rate: 1e-05, Batch size: 64, Validation Loss: 3.412225120717829
+Hidden dim: 64, Learning rate: 0.0001, Batch size: 32, Validation Loss: 2.9328370223174223
+Hidden dim: 64, Learning rate: 0.0001, Batch size: 64, Validation Loss: 3.3024222373962404
+Hidden dim: 128, Learning rate: 0.0001, Batch size: 32, Validation Loss: 2.61041640161394
+Hidden dim: 128, Learning rate: 0.0001, Batch size: 64, Validation Loss: 3.1170287045565517
+Hidden dim: 64, Learning rate: 0.001, Batch size: 32, Validation Loss: 2.154531188913294
+Hidden dim: 64, Learning rate: 0.001, Batch size: 64, Validation Loss: 2.260644613612782
+Hidden dim: 128, Learning rate: 0.001, Batch size: 32, Validation Loss: 2.0522610153163874
+Hidden dim: 128, Learning rate: 0.001, Batch size: 64, Validation Loss: 2.165565486387773
+Search at time: 2025-05-19 10:53:44.970678
+------- Epochs: 5 -------
+Hidden dim: 64, Learning rate: 1e-05, Batch size: 32, Validation Loss: 3.342917201755283
+Hidden dim: 64, Learning rate: 1e-05, Batch size: 64, Validation Loss: 3.5005414095791902
+Hidden dim: 128, Learning rate: 1e-05, Batch size: 32, Validation Loss: 3.321467960203016
+Hidden dim: 128, Learning rate: 1e-05, Batch size: 64, Validation Loss: 3.3529016668146308
+Hidden dim: 64, Learning rate: 0.0001, Batch size: 32, Validation Loss: 2.579207046611889
+Hidden dim: 64, Learning rate: 0.0001, Batch size: 64, Validation Loss: 3.162185031717474
+Hidden dim: 128, Learning rate: 0.0001, Batch size: 32, Validation Loss: 2.410268242294724
+Hidden dim: 128, Learning rate: 0.0001, Batch size: 64, Validation Loss: 2.6124438936060126
+Hidden dim: 64, Learning rate: 0.001, Batch size: 32, Validation Loss: 2.0976211380314185
+Hidden dim: 64, Learning rate: 0.001, Batch size: 64, Validation Loss: 2.171731437336315
+Hidden dim: 128, Learning rate: 0.001, Batch size: 32, Validation Loss: 1.9761000925356202
+Hidden dim: 128, Learning rate: 0.001, Batch size: 64, Validation Loss: 2.0645540172403507
+Search at time: 2025-05-19 13:45:19.054776
+------- Epochs: 5 -------
+Hidden dim: 50, Learning rate: 0.0001, Batch size: 32, Validation Loss: 2.419293635600322
