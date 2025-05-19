@@ -6,7 +6,7 @@ import contextlib
 import io
 
 
-def grid_search_lstm(X_train, X_val, unique_chars, learning_rates, seq_lengths, batch_sizes, num_epochs=10, hidden_size=128):
+def grid_search_lstm(X_train, X_val, unique_chars, learning_rates, seq_lengths, batch_sizes, char2ind, ind2char, num_epochs=10, hidden_size=128):
     results = []
     best_val_loss = float('inf')
     best_model_state = None
@@ -24,11 +24,9 @@ def grid_search_lstm(X_train, X_val, unique_chars, learning_rates, seq_lengths, 
         for seq_len in seq_lengths:
             
             for batch_size in batch_sizes:
-                #print(f"evaluating learning rate: {lr}, hidden dim: {dim} and dropout: {dropout}")
-                print("Batch value: " + str(batch_size))
                 X_train_batches, Y_train_batches = GetBatches(X_train.clone(), seq_len, batch_size)
                 X_val_batches, Y_val_batches = GetBatches(X_val.clone(), seq_len, batch_size)
-                model = LSTM(input_size=X_train.shape[1], hidden_size=hidden_size, output_size=X_train.shape[1], num_layers=2, unique_chars = unique_chars, dropout=0.2, batch_size=batch_size, seq_len=seq_len)
+                model = LSTM(input_size=X_train.shape[1], hidden_size=hidden_size, output_size=X_train.shape[1], num_layers=2, unique_chars = unique_chars, dropout=0.2, batch_size=batch_size, seq_len=seq_len, char2ind=char2ind, ind2char=ind2char)
                 with contextlib.redirect_stdout(io.StringIO()): # Simply to block prints from the train_model function.
                     loss, model_state, epochs, loss_train, loss_val = model.train_model(
                         X_train_batches,
