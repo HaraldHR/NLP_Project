@@ -1,7 +1,7 @@
 import numpy as np
 
-def ReadData():
-    fid = open('shakespeare.txt', "r")
+def ReadData(filepath):
+    fid = open(filepath, "r")
     book_data = fid.read()
     fid.close()
     unique_chars = list(set(book_data))
