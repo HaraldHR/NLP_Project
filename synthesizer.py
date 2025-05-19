@@ -24,7 +24,7 @@ def synthesize_text(model, x0, n, ind_to_char, char_to_ind, device='cpu'):
 
             x = torch.zeros((1, 1, K), dtype=torch.float32).to(device)
             x[0, 0, idx] = 1.0
-
+    model.train()
     generated_text = ''.join([ind_to_char[i] for i in generated_indices])
     return generated_text
 
