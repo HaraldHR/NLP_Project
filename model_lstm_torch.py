@@ -175,10 +175,11 @@ class LSTM(nn.Module):
                 else:
                     smooth_loss_train = 0.999 * smooth_loss_train + 0.001 * loss.item()
 
-
+                """
                 if n % 500 == 0:
                     #print(f"Iteration [{n + 1}/{n}], Loss: {smooth_loss_train:.4f}")
                     print(self.synth_text("A", self.char2ind, self.ind2char, seq_len=100))
+                """
                 n += 1
             
             # check on validation set at the end of each epoch:
@@ -235,11 +236,11 @@ def preprocess_data():
 def main():
     # Parameters
     input_size = 65  # Modify based on unique_chars length
-    hidden_size = 128
+    hidden_size = 256
     output_size = 65  # Modify based on unique_chars length
     num_layers = 2
     seq_len = 50
-    num_epochs = 80
+    num_epochs = 40
     learning_rate = 0.001
     batch_size = 32
 
@@ -256,13 +257,11 @@ def main():
     # Preprocess data
     X_data, unique_chars = preprocess_data()
 
-    X_train, X_test = TrainTestSplit(X_data, train_size=0.8)
-
-    X_train, X_val_batches = TrainValSplit(X_train, val_size = 0.2)
+    X_train, X_val, X_test = TrainValTestSplit(X_data)
 
     X_train_batches, Y_train_batches = GetBatches(X_train, seq_len=seq_len, batch_size=batch_size)
 
-    X_val_batches, Y_val_batches = GetBatches(X_val_batches, seq_len=seq_len, batch_size=batch_size) # Simply for input shape for the forwardpass, we make on big batch
+    X_val_batches, Y_val_batches = GetBatches(X_val, seq_len=seq_len, batch_size=batch_size) # Simply for input shape for the forwardpass, we make on big batch
 
     """
     learning_rates = [1e-5, 3e-5, 1e-4, 3e-4, 5e-4, 1e-3]
