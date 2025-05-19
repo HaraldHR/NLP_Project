@@ -129,8 +129,9 @@ class LSTM(nn.Module):
         loss_val = []
         epochs = []
 
-
         best_loss = best_loss_ever
+        best_model_state_dict = None
+
         for epoch in range(num_epochs):
             epoch_loss = 0.0
             hidden = None
@@ -173,18 +174,16 @@ class LSTM(nn.Module):
                     smooth_loss_train = loss.item()
                 else:
                     smooth_loss_train = 0.999 * smooth_loss_train + 0.001 * loss.item()
-                if smooth_loss_train < best_loss:
-                    best_loss = smooth_loss_train
-                    
-                    best_model_state_dict = self.state_dict()
 
+                """
                 if n % 500 == 0:
-                    print(f"Iteration [{n + 1}/{n}], Loss: {smooth_loss_train:.4f}")
+                    #print(f"Iteration [{n + 1}/{n}], Loss: {smooth_loss_train:.4f}")
                     print(self.synth_text("A", self.char2ind, self.ind2char, seq_len=100))
-
+                """
                 n += 1
             
             # check on validation set at the end of each epoch:
+            self.eval()
             val_loss_sum = 0
             for j in range(X_val_batches.shape[0]):
                 val_output, _ = self.forward(X_val_batches[j], None)
@@ -193,26 +192,24 @@ class LSTM(nn.Module):
                 val_targets = val_targets.view(-1)
                 val_loss = criterion(val_output, val_targets) # cross entropy loss
                 val_loss_sum += val_loss.item()
-            
+                if val_loss.item() < best_loss:
+                    best_loss = val_loss.item()
+                    best_model_state_dict = self.state_dict()
+            self.train()
             train_loss_avg = epoch_loss / X_train_batches.shape[0]
             val_loss_avg = val_loss_sum / X_val_batches.shape[0]
             
-            
+
             loss_train.append(train_loss_avg)
             loss_val.append(val_loss_avg)
             epochs.append(epoch)
+
                     
-                    
-                
-
-
-
-
-            steps_for_plotting = torch.arange(0, n, 500)
+            #steps_for_plotting = torch.arange(0, n, 500)
             #avg_loss = epoch_loss / num_chunks
-            print(f"Epoch {epoch + 1}/{num_epochs}")
+            print(f"Epoch {epoch + 1}/{num_epochs}, Validation Loss: {val_loss_avg}")
             #print(f"Epoch [{epoch + 1}/{num_epochs}], Avg Loss: {avg_loss:.4f}")
-
+        print(f"Lowest avg loss found in epoch {np.argmin(loss_val)}")
         return best_loss, best_model_state_dict, epochs, loss_train, loss_val
 
 
@@ -239,13 +236,13 @@ def preprocess_data():
 def main():
     # Parameters
     input_size = 65  # Modify based on unique_chars length
-    hidden_size = 100
+    hidden_size = 256
     output_size = 65  # Modify based on unique_chars length
     num_layers = 2
     seq_len = 50
-    num_epochs = 200
+    num_epochs = 40
     learning_rate = 0.001
-    batch_size = 64
+    batch_size = 32
 
     best_model_path = "best_lstm_model.pth"
     best_loss_path = "best_loss_lstm.txt"
@@ -260,36 +257,32 @@ def main():
     # Preprocess data
     X_data, unique_chars = preprocess_data()
 
-    X_train, X_test = TrainTestSplit(X_data, train_size=0.8)
-    """
-    X_train, X_val_batches = TrainValSplit(X_train, val_size = 0.2)
+    X_train, X_val, X_test = TrainValTestSplit(X_data)
 
     X_train_batches, Y_train_batches = GetBatches(X_train, seq_len=seq_len, batch_size=batch_size)
 
-    X_val_batches, Y_val_batches = GetBatches(X_val_batches, seq_len=seq_len, batch_size=batch_size) # Simply for input shape for the forwardpass, we make on big batch
-    X_val_batches = X_val_batches.squeeze(0)
-    Y_val_batches = Y_val_batches.squeeze(0) # Makin it only one batch, don't need the outer dimension.
+    X_val_batches, Y_val_batches = GetBatches(X_val, seq_len=seq_len, batch_size=batch_size) # Simply for input shape for the forwardpass, we make on big batch
+
     """
-    
     learning_rates = [1e-5, 3e-5, 1e-4, 3e-4, 5e-4, 1e-3]
-    hidden_dims = [64, 128, 256, 512]
+    seq_lengths = [25, 50, 75, 100]
     batch_sizes = [16, 32, 64, 128]
-    LSTM_search.grid_search_lstm(X_train, unique_chars, learning_rates, hidden_dims, batch_sizes, num_epochs=12)
-    
+    LSTM_search.grid_search_lstm(X_train, unique_chars, learning_rates, seq_lengths, batch_sizes, num_epochs=10)
     """
+    
     # Initialize the LSTM model
     model = LSTM(input_size=input_size, hidden_size=hidden_size, unique_chars = unique_chars, output_size=output_size, num_layers=num_layers, batch_size = batch_size, seq_len = seq_len)
     
     # Train the model
-    best_loss, best_model_state_dict, epochs_for_plot, train_loss, val_loss = model.train_model(X_train_batches, Y_train_batches, X_val, Y_val, num_epochs, learning_rate=learning_rate, best_loss_ever = best_loss_ever)
-    
-    # Write best result to to files
-    torch.save(best_model_state_dict, best_model_path)
-    with open(best_loss_path, "w") as f:
-        f.write(str(best_loss))
-    print(f"Best loss after training: {best_loss:.4f}")
+    best_loss_after, best_model_state_dict, epochs_for_plot, train_loss, val_loss = model.train_model(X_train_batches, Y_train_batches, X_val_batches, Y_val_batches, num_epochs, learning_rate=learning_rate, best_loss_ever = best_loss_ever)
+    if best_loss_after < best_loss_ever:
+        # Write best result to to files
+        torch.save(best_model_state_dict, best_model_path)
+        with open(best_loss_path, "w") as f:
+            f.write(str(best_loss_after))
+        print(f"Best loss after training: {best_loss_after:.4f}")
 
     LossPlotter.plot_losses(train_loss, val_loss, epochs_for_plot)
-    """
+
 if __name__ == '__main__':
     main()
