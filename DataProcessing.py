@@ -22,12 +22,14 @@ def ConvertToOneHot(chars, char_to_ind):
         one_hot[i, char_to_ind[chars[i]]] = 1 
     return one_hot
 
-def TrainTestSplit(X, train_size): # X is one-hot encoded, train_size is a fraction.
+def TrainValTestSplit(X, train_size=0.8, val_size=0.1): # X is one-hot encoded, train_size is a fraction.
     n = X.shape[0]
-    split_index = int(n * train_size)
-    X_train = X[:split_index]
-    X_test = X[split_index:]
-    return X_train, X_test
+    split_index_train = int(n * train_size)
+    split_index_val = split_index_train + int(n * val_size)
+    X_train = X[:split_index_train]
+    X_val = X[split_index_train:split_index_val]
+    X_test = X[split_index_val:]
+    return X_train, X_val, X_test
 
 def TrainValSplit(X, val_size): # Simply for clearer naming
     X_train, X_val = TrainTestSplit(X, 1-val_size)
