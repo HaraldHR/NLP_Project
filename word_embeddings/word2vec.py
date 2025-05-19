@@ -79,6 +79,9 @@ class Word2Vec(object):
         # Initializes the processed token to be None.
         self.tokens = None
 
+        # The text parsed as tokens, of type 'list'.
+        self.tokenized = None
+
         # If None use standard tokenization. Otherwise input a tokenization module (like BPE).
         self.tokenization = tokenization
 
@@ -165,12 +168,12 @@ class Word2Vec(object):
             else:
                 try:
                     print("Fetching BPE tokens...")
-                    vocab, self.tokens = self.tokenization.tokenize(text)
-                    print(self.tokens)
+                    vocab, self.tokens, self.tokenized = self.tokenization.tokenize(text)
+                    print(self.tokenized)
                 except:
                     raise ValueError(f"Something went wrong in tokenization...")
 
-            for i, token in enumerate(self.tokens):
+            for i, token in enumerate(self.tokenized):
                 self.tokens_processed += 1
                 focus_id = self.get_word_id(token)
                 context = self.get_context(i) # should be a numpy array.
@@ -346,25 +349,32 @@ class Word2Vec(object):
                 f.write('\n')
         f.close()
 
-    def write_token_data_to_file():
 
+
+    def write_token_data_to_file(self, filename):
+        with open(filename, 'w') as f:
+            for token in self.tokens:
+                f.write(token)
+                f.write('\n')
+        f.close()
 
 
 
 if __name__ == '__main__':
     print(nltk.data.find('tokenizers/punkt_tab'))
 
-    file = '../shakespeare.txt'
+    file = '../shakespear_small.txt'
 
     # Creates the word2vec model.
     bpe = BPE(max_vocab_size=500)
-    w2v = Word2Vec(dimension=100, n_neg_samples=15, epochs=5, lr_scheduling=True, tokenization=bpe)
+    w2v = Word2Vec(dimension=100, n_neg_samples=15, epochs=2, lws_size=4, rws_size=4,
+                   lr_scheduling=True, tokenization=bpe)
         
     w2v.process_files(file)
     print(f"Processed {w2v.tokens_processed} tokens")
     print(f"Found {len(w2v.word2id)} unique words")
     w2v.train()
-    print(w2v.tokens())
+    w2v.write_token_data_to_file('tokenized.txt')
 
 
 

@@ -258,7 +258,7 @@ def preprocess_data(type='chars'):
 
     if type=='tokens':
         # Tokenizing
-        vocab, tokens = tokenize_data(data, vocab_size=100)
+        vocab, tokens = tokenize_data(data, vocab_size=500)
 
         # Convert data to a sequence of indices
         data_indices = get_ids(tokens, word2id)
