@@ -5,28 +5,19 @@ import datetime
 from model_RNN import RNN
 from model_lstm_torch import LSTM
 import torch.nn.functional as F
+import pickle
 
 
-def compare_state_dicts(dict1, dict2):
-    if dict1.keys() != dict2.keys():
-        print("Mismatch in keys.")
-        return False
 
-    for key in dict1:
-        if not torch.equal(dict1[key], dict2[key]):
-            print(f"Mismatch in parameter: {key}")
-            return False
-
-    print("State dicts match exactly.")
-    return True
 
 def preprocess_data():
     # Get the raw data and unique characters
     data, unique_chars = ReadData("shakespeare.txt")
 
-    # Create a mapping of character to index
-    char2ind = {char: idx for idx, char in enumerate(unique_chars)}
-    ind2char = {idx: char for idx, char in enumerate(unique_chars)}
+    with open("dicts.pkl", "rb") as f:
+        vocab = pickle.load(f)
+        char2ind = vocab['char2ind']
+        ind2char = vocab['ind2char']
 
     # Convert data to a sequence of indices
     data_indices = [char2ind[char] for char in data]
@@ -45,7 +36,10 @@ def preprocess_data():
 def load_model_and_synthesize(model_path, start_char="A", seq_len=100):
     X_data, unique_chars = preprocess_data()
 
-    char2ind, ind2char = GetDicts(unique_chars)
+    with open("dicts.pkl", "rb") as f:
+        vocab = pickle.load(f)
+        char2ind = vocab['char2ind']
+        ind2char = vocab['ind2char']
 
     input_size = output_size = X_data.shape[1]
     hidden_size = 256
@@ -71,7 +65,7 @@ def load_model_and_synthesize(model_path, start_char="A", seq_len=100):
 
 
     if isinstance(model, LSTM):
-        return model.synth_text(start_char, char2ind, ind2char, seq_len=seq_len)
+        return model.synth_text(start_char, seq_len=seq_len)
     elif isinstance(model, RNN):
         print("Synthesizing")
         start_idx = char2ind[start_char]
@@ -96,13 +90,14 @@ def run_text_quality_tests(synthesized_text, processor, model_type,  output_path
         f.write(f"3-Gram Match Fraction: {three_gram_score:.4f}\n")
 
 
+if __name__ == "__main__":
 
-print("STARTINGS")
-data_str, _ = ReadData("shakespeare.txt")
-processor = TextProcessor(data_str)
-
-
-synthesized_text = load_model_and_synthesize("best_rnn_model.pth", seq_len= 200)
+    print("STARTINGS")
+    data_str, _ = ReadData("shakespeare.txt")
+    processor = TextProcessor(data_str)
 
 
-run_text_quality_tests(synthesized_text, processor, "No Model, Just Test")
+    synthesized_text =load_model_and_synthesize("best_rnn_model.pth", seq_len= 200)
+
+
+    run_text_quality_tests(synthesized_text, processor, "No Model, Just Test")
