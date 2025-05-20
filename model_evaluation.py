@@ -43,7 +43,7 @@ def load_model_and_synthesize(model_path, start_char="H", seq_len=1000):
 
     input_size = output_size = X_data.shape[1]
     hidden_size = 256
-    num_layers = 2
+    num_layers = 1
     #seq_len = 100
     batch_size = 16
 
@@ -97,7 +97,7 @@ if __name__ == "__main__":
     processor = TextProcessor(data_str)
 
 
-    synthesized_text =load_model_and_synthesize("best_lstm_model.pth", seq_len= 1000)
+    synthesized_text =load_model_and_synthesize("best_lstm_model_1_layer.pth", seq_len= 1000)
 
 
     run_text_quality_tests(synthesized_text, processor, "No Model, Just Test")
