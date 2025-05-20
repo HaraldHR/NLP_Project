@@ -1,11 +1,49 @@
 === Text Quality Evaluation ===
 
-Tests run at 2025-05-19 16:45:36.865877
+Tests run at 2025-05-20 10:28:32.531960
 Model used: No Model, Just Test
 Synthesized Text:
-MMdV;yVM;oS
-Mp;VSH;yVSFp;Hb; SuM;uDP;yVMb;H,Fy;bD,
+Have I say, from her
+And for me.
 
-Correctly Spelt Word Fraction: 0.0769
-2-Gram Match Fraction: 0.1224
-3-Gram Match Fraction: 0.0208
+CLARENCENCE:
+Best never and free sends a half?
+
+ARCEITIA:
+No, master, and the house of Peture, if it not far still.
+
+TRANIO:
+Hold thou ast my shamestion in vice is not any tommorrow her come.
+
+SLY:
+I bring any husband in thy world such ooth,
+And save to come indeed;
+Sence to have the new mercy are mine
+for the trick nurse of groat
+And you should besheer let them else doth talks;
+If I know her as you have provokes,
+To such as you found him.
+
+PETRUCHIO:
+No, sir, if this tit then I'll prove my lord, by my barbany gentleman
+a worships, to infult not, and say therefore you hear it that bear I should be
+The pessive finds with my rough.
+
+CLAUDIO:
+Conserve him, and that I swaluting netirness and there,
+Troltusions give the best.
+
+SLY:
+And perusate him at a loving time:
+Well, this is all drawn so more stiff, we have,
+Which is a word, sir.
+
+SAMILO:
+I have a the order, let me well at Issake you so,
+Perducking the knocks while you'll mad mee them mad, her all.
+
+SLY
+
+Correctly Spelt Word Fraction: 0.8878
+2-Gram Match Fraction: 0.8830
+3-Gram Match Fraction: 0.8488
