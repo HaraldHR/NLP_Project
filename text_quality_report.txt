@@ -1,11 +1,46 @@
 === Text Quality Evaluation ===
 
-Tests run at 2025-05-19 16:45:36.865877
+Tests run at 2025-05-20 09:18:40.009675
 Model used: No Model, Just Test
 Synthesized Text:
-MMdV;yVM;oS
-Mp;VSH;yVSFp;Hb; SuM;uDP;yVMb;H,Fy;bD,
+H:
+Secration all one noble fair frown and
+offence me as he will have pity war
+To him in itself: master is so led the duty.
 
-Correctly Spelt Word Fraction: 0.0769
-2-Gram Match Fraction: 0.1224
-3-Gram Match Fraction: 0.0208
+DUKE VINCENTIO:
+You're true, I'll tell me here;
+Which in Claudio's another fairly to
+courts are faults, sir?
+
+LADY GREY:
+I hope as I will hear you.
+
+YORK:
+So shall I stull her surece and married,
+And stand and yet here indeed.
+
+MARIANA:
+Ay, as I know my and and to use in the appellanks,
+And if I scorn the remedses of the truth:
+I shall be such written facted scipps in the merried
+and his true love, and struck me more
+Fresh that I am such appear'd
+Should she be discharged and sounds. Bage is Angelo?
+
+TRANIO:
+Measunts, I have she you will well; I will not?
+
+ESCALUS:
+I will take it. Bardark come me to ill them touch'd,
+And from him, such easy since it is before that her.
+
+Second Hurtion:
+And as I have lost a man
+shall I say, and what is thine eye
+Before the nature is as at the troth, and
+she had a man common strange; and if you be so will fit and over pitious and for 
+
+Correctly Spelt Word Fraction: 0.9320
+2-Gram Match Fraction: 0.8800
+3-Gram Match Fraction: 0.8388

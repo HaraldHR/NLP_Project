@@ -4,7 +4,7 @@ import torch.optim as optim
 import numpy as np
 import torch.nn.functional as F
 from DataProcessing import *  # Assuming ReadData is in DataProcessing.py
-import LSTM_search
+#import LSTM_search
 import copy
 from tqdm import tqdm
 from DataVisualization import LossPlotter
@@ -98,9 +98,9 @@ class LSTM(nn.Module):
             # Apply softmax to get probabilities for the next character
 
             output_probs = F.softmax(output[-1], dim=-1)  # Use the last output for prediction
-            next_char_idx = torch.multinomial(output_probs, 1).item() # Pure Sampling
+            #next_char_idx = torch.multinomial(output_probs, 1).item() # Pure Sampling
             #next_char_idx = self.nucleus_sampling(output_probs) # Nucleus Sampling
-            #next_char_idx = self.temperature_sampling(output.squeeze())
+            next_char_idx = self.temperature_sampling(output.squeeze())
 
             # Get the next character
             next_char = self.ind2char[next_char_idx]
@@ -184,6 +184,7 @@ class LSTM(nn.Module):
                 n += 1
             
             # check on validation set at the end of each epoch:
+            """
             self.eval()
             val_loss_sum = 0
             for j in range(X_val_batches.shape[0]):
@@ -201,16 +202,20 @@ class LSTM(nn.Module):
             val_loss_avg = val_loss_sum / X_val_batches.shape[0]
             
 
-            loss_train.append(train_loss_avg)
+            
             loss_val.append(val_loss_avg)
             epochs.append(epoch)
 
-                    
+            """   
+            train_loss_avg = epoch_loss / X_train_batches.shape[0]
+            loss_train.append(train_loss_avg)  
             #steps_for_plotting = torch.arange(0, n, 500)
             #avg_loss = epoch_loss / num_chunks
-            print(f"Epoch {epoch + 1}/{num_epochs}, Validation Loss: {val_loss_avg}")
-            #print(f"Epoch [{epoch + 1}/{num_epochs}], Avg Loss: {avg_loss:.4f}")
-        print(f"Lowest avg loss found in epoch {np.argmin(loss_val)}")
+            #print(f"Epoch {epoch + 1}/{num_epochs}, Validation Loss: {val_loss_avg}")
+            print(f"Epoch [{epoch + 1}/{num_epochs}], Avg Loss: {train_loss_avg:.4f}")
+        #print(f"Lowest avg loss found in epoch {np.argmin(loss_val)}")
+        best_model_state_dict = self.state_dict()
+        print(self.synth_text("H", 1000))
         return best_loss, best_model_state_dict, epochs, loss_train, loss_val
 
 
@@ -236,10 +241,10 @@ def main():
     hidden_size = 256
     output_size = 65  # Modify based on unique_chars length
     num_layers = 2
-    seq_len = 50
-    num_epochs = 3
-    learning_rate = 0.001
-    batch_size = 32
+    seq_len = 100
+    num_epochs = 10
+    learning_rate = 0.003
+    batch_size = 16
 
     with open("dicts.pkl", "rb") as f:
         vocab = pickle.load(f)
@@ -260,22 +265,25 @@ def main():
     X_data, unique_chars = preprocess_data(char2ind, ind2char)
 
     X_train, X_val, X_test = TrainValTestSplit(X_data)
-
+    X_train = torch.cat((X_train, X_val))
     X_train_batches, Y_train_batches = GetBatches(X_train, seq_len=seq_len, batch_size=batch_size)
 
     X_val_batches, Y_val_batches = GetBatches(X_val, seq_len=seq_len, batch_size=batch_size) # Simply for input shape for the forwardpass, we make on big batch
-
+    """
     learning_rates = [1e-3, 3e-3, 8e-4, 6e-4, 3e-4 ,1e-4, 8e-5, 3e-5, 1e-5]
     seq_lengths = [25, 50, 75, 100]
     batch_sizes = [16, 32, 64, 128]
     LSTM_search.grid_search_lstm(X_train, X_val, unique_chars, learning_rates, seq_lengths, batch_sizes, num_epochs=10, char2ind=char2ind, ind2char=ind2char)
-    
     """
+    
     # Initialize the LSTM model
     model = LSTM(input_size=input_size, hidden_size=hidden_size, unique_chars = unique_chars, output_size=output_size, num_layers=num_layers, batch_size = batch_size, seq_len = seq_len, char2ind=char2ind, ind2char=ind2char)
     
     # Train the model
     best_loss_after, best_model_state_dict, epochs_for_plot, train_loss, val_loss = model.train_model(X_train_batches, Y_train_batches, X_val_batches, Y_val_batches, num_epochs, learning_rate=learning_rate, best_loss_ever = best_loss_ever)
+    torch.save(best_model_state_dict, best_model_path)
+    print("SAVED")
+    """
     if best_loss_after < best_loss_ever:
         # Write best result to to files
         torch.save(best_model_state_dict, best_model_path)
