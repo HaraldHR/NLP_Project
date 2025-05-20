@@ -4,7 +4,7 @@ import torch.optim as optim
 import numpy as np
 import torch.nn.functional as F
 from DataProcessing import *  # Assuming ReadData is in DataProcessing.py
-#import LSTM_search
+import LSTM_search
 import copy
 from tqdm import tqdm
 from DataVisualization import LossPlotter
@@ -99,8 +99,8 @@ class LSTM(nn.Module):
 
             output_probs = F.softmax(output[-1], dim=-1)  # Use the last output for prediction
             #next_char_idx = torch.multinomial(output_probs, 1).item() # Pure Sampling
-            #next_char_idx = self.nucleus_sampling(output_probs) # Nucleus Sampling
-            next_char_idx = self.temperature_sampling(output.squeeze())
+            next_char_idx = self.nucleus_sampling(output_probs) # Nucleus Sampling
+            #next_char_idx = self.temperature_sampling(output.squeeze())
 
             # Get the next character
             next_char = self.ind2char[next_char_idx]
@@ -184,7 +184,7 @@ class LSTM(nn.Module):
                 n += 1
             
             # check on validation set at the end of each epoch:
-            """
+            
             self.eval()
             val_loss_sum = 0
             for j in range(X_val_batches.shape[0]):
@@ -206,16 +206,16 @@ class LSTM(nn.Module):
             loss_val.append(val_loss_avg)
             epochs.append(epoch)
 
-            """   
+            
             train_loss_avg = epoch_loss / X_train_batches.shape[0]
             loss_train.append(train_loss_avg)  
             #steps_for_plotting = torch.arange(0, n, 500)
             #avg_loss = epoch_loss / num_chunks
             #print(f"Epoch {epoch + 1}/{num_epochs}, Validation Loss: {val_loss_avg}")
-            print(f"Epoch [{epoch + 1}/{num_epochs}], Avg Loss: {train_loss_avg:.4f}")
+            print(f"Epoch [{epoch + 1}/{num_epochs}], Avg Loss: {val_loss_avg:.4f}")
         #print(f"Lowest avg loss found in epoch {np.argmin(loss_val)}")
-        best_model_state_dict = self.state_dict()
-        print(self.synth_text("H", 1000))
+        #best_model_state_dict = self.state_dict()
+        #print(self.synth_text("H", 1000))
         return best_loss, best_model_state_dict, epochs, loss_train, loss_val
 
 
@@ -234,6 +234,38 @@ def preprocess_data(char2ind, ind2char):
 
     return X_one_hot, unique_chars
 
+def evaluate_test(X_test, model):
+    X_test_batches, Y_test_batches = GetBatches(X_test, seq_len=model.seq_len, batch_size=model.batch_size)
+    hidden = None
+    model.forward(X_test, hidden)
+    total_loss = 0
+    for i in range(X_test_batches.shape[0]):
+        criterion = nn.CrossEntropyLoss()
+        #print(f"Batch: {i+1}")
+        X_batch = X_test_batches[i] # (seq_len, 1, input_size)
+        Y_batch = Y_test_batches[i]
+        
+        target_seq = torch.argmax(Y_batch, dim=2)
+
+        # Initialize the hidden and cell states if None
+        if hidden is None:
+            hidden = model.init_hidden(batch_size=model.batch_size)
+
+        output_seq, hidden = model.forward(X_batch, hidden)
+        # Detach hidden states to avoid backprop through the entire training history
+        if hidden is not None:
+            hidden = tuple([h.detach() for h in hidden])
+
+        # Reshape output: (seq_len, batch, output_size) → (seq_len * batch, output_size)
+        output_seq = output_seq.view(-1, 65)
+        target_seq = target_seq.view(-1)
+
+
+        loss = criterion(output_seq, target_seq) # cross entropy loss
+        total_loss += loss.item() # for average
+    test_loss = total_loss/X_test_batches.shape[0]
+    print(f"Test loss: {test_loss}")
+    return test_loss
 
 def main():
     # Parameters
@@ -242,7 +274,7 @@ def main():
     output_size = 65  # Modify based on unique_chars length
     num_layers = 2
     seq_len = 100
-    num_epochs = 10
+    num_epochs = 30
     learning_rate = 0.003
     batch_size = 16
 
@@ -265,24 +297,33 @@ def main():
     X_data, unique_chars = preprocess_data(char2ind, ind2char)
 
     X_train, X_val, X_test = TrainValTestSplit(X_data)
-    X_train = torch.cat((X_train, X_val))
+    model = LSTM(input_size=input_size, hidden_size=hidden_size,
+                     output_size=output_size, unique_chars=unique_chars,
+                     num_layers=num_layers, batch_size=batch_size, seq_len=seq_len, char2ind=char2ind, ind2char=ind2char)
+    model.load_state_dict(torch.load("best_lstm_model.pth"))
+    evaluate_test(X_test, model)
+    
+    """
+    #X_train = torch.cat((X_train, X_val))
     X_train_batches, Y_train_batches = GetBatches(X_train, seq_len=seq_len, batch_size=batch_size)
 
     X_val_batches, Y_val_batches = GetBatches(X_val, seq_len=seq_len, batch_size=batch_size) # Simply for input shape for the forwardpass, we make on big batch
     """
-    learning_rates = [1e-3, 3e-3, 8e-4, 6e-4, 3e-4 ,1e-4, 8e-5, 3e-5, 1e-5]
-    seq_lengths = [25, 50, 75, 100]
-    batch_sizes = [16, 32, 64, 128]
+    """
+    learning_rates = [1e-3, 3e-3, 5e-3]
+    seq_lengths = [75, 100]
+    batch_sizes = [16, 32]
     LSTM_search.grid_search_lstm(X_train, X_val, unique_chars, learning_rates, seq_lengths, batch_sizes, num_epochs=10, char2ind=char2ind, ind2char=ind2char)
     """
-    
+    """
     # Initialize the LSTM model
     model = LSTM(input_size=input_size, hidden_size=hidden_size, unique_chars = unique_chars, output_size=output_size, num_layers=num_layers, batch_size = batch_size, seq_len = seq_len, char2ind=char2ind, ind2char=ind2char)
     
     # Train the model
     best_loss_after, best_model_state_dict, epochs_for_plot, train_loss, val_loss = model.train_model(X_train_batches, Y_train_batches, X_val_batches, Y_val_batches, num_epochs, learning_rate=learning_rate, best_loss_ever = best_loss_ever)
-    torch.save(best_model_state_dict, best_model_path)
-    print("SAVED")
+    #torch.save(best_model_state_dict, best_model_path)
+    #print("SAVED")
+    """
     """
     if best_loss_after < best_loss_ever:
         # Write best result to to files

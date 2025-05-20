@@ -145,3 +145,20 @@ Sequence Length: 100, Learning rate: 1e-05, Batch size: 64, Validation Loss: 3.3
 Sequence Length: 100, Learning rate: 1e-05, Batch size: 128, Validation Loss: 3.460760861635208
 
 BEST: best learning rate, sequence length and batch size combo: 0.003, 100, 16, loss: 1.5695
+-------Epochs: 10-------
+
+-------Epochs: 10-------
+Sequence Length: 75, Learning rate: 0.001, Batch size: 16, Validation Loss: 1.668487600658251
+Sequence Length: 75, Learning rate: 0.001, Batch size: 32, Validation Loss: 1.7995163616926775
+Sequence Length: 100, Learning rate: 0.001, Batch size: 16, Validation Loss: 1.692953386168549
+Sequence Length: 100, Learning rate: 0.001, Batch size: 32, Validation Loss: 1.881486226530636
+Sequence Length: 75, Learning rate: 0.003, Batch size: 16, Validation Loss: 1.5504834651947021
+Sequence Length: 75, Learning rate: 0.003, Batch size: 32, Validation Loss: 1.5954920519953188
+Sequence Length: 100, Learning rate: 0.003, Batch size: 16, Validation Loss: 1.5507779242335886
+Sequence Length: 100, Learning rate: 0.003, Batch size: 32, Validation Loss: 1.606004988445955
+Sequence Length: 75, Learning rate: 0.005, Batch size: 16, Validation Loss: 1.5674386866714642
+Sequence Length: 75, Learning rate: 0.005, Batch size: 32, Validation Loss: 1.6016551463500313
+Sequence Length: 100, Learning rate: 0.005, Batch size: 16, Validation Loss: 1.5478463466616645
+Sequence Length: 100, Learning rate: 0.005, Batch size: 32, Validation Loss: 1.5938253613079296
+
+BEST: best learning rate, dim and batch size combo: 0.005, 100, 16, loss: 1.5478

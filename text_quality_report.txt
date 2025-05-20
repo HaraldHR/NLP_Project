@@ -1,46 +1,49 @@
 === Text Quality Evaluation ===
 
-Tests run at 2025-05-20 09:18:40.009675
+Tests run at 2025-05-20 10:28:32.531960
 Model used: No Model, Just Test
 Synthesized Text:
-H:
-Secration all one noble fair frown and
-offence me as he will have pity war
-To him in itself: master is so led the duty.
+Have I say, from her
+And for me.
 
-DUKE VINCENTIO:
-You're true, I'll tell me here;
-Which in Claudio's another fairly to
-courts are faults, sir?
+CLARENCENCE:
+Best never and free sends a half?
 
-LADY GREY:
-I hope as I will hear you.
-
-YORK:
-So shall I stull her surece and married,
-And stand and yet here indeed.
-
-MARIANA:
-Ay, as I know my and and to use in the appellanks,
-And if I scorn the remedses of the truth:
-I shall be such written facted scipps in the merried
-and his true love, and struck me more
-Fresh that I am such appear'd
-Should she be discharged and sounds. Bage is Angelo?
+ARCEITIA:
+No, master, and the house of Peture, if it not far still.
 
 TRANIO:
-Measunts, I have she you will well; I will not?
+Hold thou ast my shamestion in vice is not any tommorrow her come.
 
-ESCALUS:
-I will take it. Bardark come me to ill them touch'd,
-And from him, such easy since it is before that her.
+SLY:
+I bring any husband in thy world such ooth,
+And save to come indeed;
+Sence to have the new mercy are mine
+for the trick nurse of groat
+And you should besheer let them else doth talks;
+If I know her as you have provokes,
+To such as you found him.
 
-Second Hurtion:
-And as I have lost a man
-shall I say, and what is thine eye
-Before the nature is as at the troth, and
-she had a man common strange; and if you be so will fit and over pitious and for 
+PETRUCHIO:
+No, sir, if this tit then I'll prove my lord, by my barbany gentleman
+a worships, to infult not, and say therefore you hear it that bear I should be
+The pessive finds with my rough.
 
-Correctly Spelt Word Fraction: 0.9320
-2-Gram Match Fraction: 0.8800
-3-Gram Match Fraction: 0.8388
+CLAUDIO:
+Conserve him, and that I swaluting netirness and there,
+Troltusions give the best.
+
+SLY:
+And perusate him at a loving time:
+Well, this is all drawn so more stiff, we have,
+Which is a word, sir.
+
+SAMILO:
+I have a the order, let me well at Issake you so,
+Perducking the knocks while you'll mad mee them mad, her all.
+
+SLY
+
+Correctly Spelt Word Fraction: 0.8878
+2-Gram Match Fraction: 0.8830
+3-Gram Match Fraction: 0.8488
