@@ -270,7 +270,7 @@ def evaluate_test(X_test, model):
 def main():
     # Parameters
     input_size = 65  # Modify based on unique_chars length
-    hidden_size = 256
+    hidden_size = 512
     output_size = 65  # Modify based on unique_chars length
     num_layers = 2
     seq_len = 100
@@ -297,34 +297,35 @@ def main():
     X_data, unique_chars = preprocess_data(char2ind, ind2char)
 
     X_train, X_val, X_test = TrainValTestSplit(X_data)
+    """
     model = LSTM(input_size=input_size, hidden_size=hidden_size,
                      output_size=output_size, unique_chars=unique_chars,
                      num_layers=num_layers, batch_size=batch_size, seq_len=seq_len, char2ind=char2ind, ind2char=ind2char)
     model.load_state_dict(torch.load("best_lstm_model.pth"))
     evaluate_test(X_test, model)
-    
     """
+
     #X_train = torch.cat((X_train, X_val))
     X_train_batches, Y_train_batches = GetBatches(X_train, seq_len=seq_len, batch_size=batch_size)
 
     X_val_batches, Y_val_batches = GetBatches(X_val, seq_len=seq_len, batch_size=batch_size) # Simply for input shape for the forwardpass, we make on big batch
-    """
+    
     """
     learning_rates = [1e-3, 3e-3, 5e-3]
     seq_lengths = [75, 100]
     batch_sizes = [16, 32]
     LSTM_search.grid_search_lstm(X_train, X_val, unique_chars, learning_rates, seq_lengths, batch_sizes, num_epochs=10, char2ind=char2ind, ind2char=ind2char)
     """
-    """
+    
     # Initialize the LSTM model
     model = LSTM(input_size=input_size, hidden_size=hidden_size, unique_chars = unique_chars, output_size=output_size, num_layers=num_layers, batch_size = batch_size, seq_len = seq_len, char2ind=char2ind, ind2char=ind2char)
     
-    # Train the model
-    best_loss_after, best_model_state_dict, epochs_for_plot, train_loss, val_loss = model.train_model(X_train_batches, Y_train_batches, X_val_batches, Y_val_batches, num_epochs, learning_rate=learning_rate, best_loss_ever = best_loss_ever)
+   
     #torch.save(best_model_state_dict, best_model_path)
     #print("SAVED")
-    """
-    """
+    
+     # Train the model
+    best_loss_after, best_model_state_dict, epochs_for_plot, train_loss, val_loss = model.train_model(X_train_batches, Y_train_batches, X_val_batches, Y_val_batches, num_epochs, learning_rate=learning_rate, best_loss_ever = best_loss_ever)
     if best_loss_after < best_loss_ever:
         # Write best result to to files
         torch.save(best_model_state_dict, best_model_path)
@@ -333,6 +334,6 @@ def main():
         print(f"Best loss after training: {best_loss_after:.4f}")
 
     LossPlotter.plot_losses(train_loss, val_loss, epochs_for_plot)
-    """
+
 if __name__ == '__main__':
     main()
