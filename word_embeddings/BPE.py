@@ -1,16 +1,14 @@
-'''
+"""
 File contains structure for performing a Byte-Pair encoding to tokenize the text.
 Largly inspired from the Hugging Face tutorial code, with a class structure.
 
 Possible improvements:
 - Support for unknown characters.
 - Create a sampling for pairs with equal frequency instead of picking the first one that appears.
-'''
+"""
 
-from transformers import AutoTokenizer
 from collections import defaultdict
 
-tokenizer = AutoTokenizer.from_pretrained("gpt2")
 
 class BPE:
     def __init__(self, max_vocab_size=50):
@@ -18,22 +16,25 @@ class BPE:
         self.word_freqs = defaultdict(int)
         self.pair_freqs = defaultdict(int)
         self.vocab = []
-        self.tokens = {} # will contain a dictionairy with each word as key, and that words tokenization as a list of tokens as the value.
+        self.tokens = (
+            {}
+        )  # will contain a dictionairy with each word as key, and that words tokenization as a list of tokens as the value.
         self.tokenized = []
         self.merges = {}
         self.merges_list = []
 
-
     def tokenize(self, text, create_new_vocab=True):
-        '''
+        """
         Tokenizes the inputted text into the models specified vocab length.
         :param text:
         :param create_new_vocab:
         :return:
-        '''
+        """
         if create_new_vocab:
             self.reset_model()
-        self.pre_tokenize([text] if isinstance(text, str) else text) # Calculates word frequencies.
+        self.pre_tokenize(
+            [text] if isinstance(text, str) else text
+        )  # Calculates word frequencies.
         self.create_vocab()
         self.generate_tokens(text)
         self.tokens.append("<space>")
@@ -43,32 +44,26 @@ class BPE:
 
         return self.vocab, self.tokens, self.tokenized
 
-
     def reset_model(self):
         self.word_freqs = defaultdict(int)
         self.pair_freqs = defaultdict(int)
         self.vocab = []
-        self.tokens= {}
-
+        self.tokens = {}
 
     def set_vocab_length(self, vocab_length):
-        '''
+        """
         Sets a new vocabulary length of the instantiated model.
         :param vocab_length:
         :return:
-        '''
+        """
         assert type(vocab_length) == int, f"New vocabulary length must be of type INT."
         self.max_vocab_size = vocab_length
-
-
 
     def pre_tokenize(self, corpus):
         for text in corpus:
             words = text.split()  # or use nltk.word_tokenize(text)
             for word in words:
                 self.word_freqs[word] += 1
-
-
 
     def create_vocab(self):
         for word in self.word_freqs.keys():
@@ -78,46 +73,44 @@ class BPE:
         self.vocab.sort()
         self.vocab = ["<|endoftext|>", "<space>"] + self.vocab.copy()
 
-
-
     def compute_pair_freqs(self, splits):
-        '''
+        """
         This method calculates the frequency of pairs of characters in the corpus.
         Only accounts for charactes in the same words, and NOT between words and sentences.
         param: dictionairy
             contains the words as keys, and a list of all characters in that word as values.
         :return:
-        '''
-        self.pair_freqs = defaultdict(int) # empties the dictionairy.
+        """
+        self.pair_freqs = defaultdict(int)  # empties the dictionairy.
         for word, freq in self.word_freqs.items():
-            split = splits[word] # gathers the characters of the word.
-            if len(split) == 1: # if word only contains one character.
+            split = splits[word]  # gathers the characters of the word.
+            if len(split) == 1:  # if word only contains one character.
                 continue
-            for i in range(len(split)-1):
-                pair = (split[i], split[i+1])
+            for i in range(len(split) - 1):
+                pair = (split[i], split[i + 1])
                 # freqeuncy of the word will also denote how many occurances of the pair there are in the corpus.
                 self.pair_freqs[pair] += freq
-
 
     # Function mostly copied from Hugging Face tutorial.
     def merge_pair(self, a, b, splits):
         for word in self.word_freqs:
-            split = splits[word] # split is a list of characters in the word.
-            if len(split) == 1: # If word is only one character, we skip this word.
+            split = splits[word]  # split is a list of characters in the word.
+            if len(split) == 1:  # If word is only one character, we skip this word.
                 continue
             i = 0
             while i < len(split) - 1:
-                if split[i] == a and split[i + 1] == b: # We find our match, then merge it.
-                    split = split[:i] + [a + b] + split[i + 2:]
-                    if (a+b) not in self.vocab:
-                        self.vocab.append(a+b)
+                if (
+                    split[i] == a and split[i + 1] == b
+                ):  # We find our match, then merge it.
+                    split = split[:i] + [a + b] + split[i + 2 :]
+                    if (a + b) not in self.vocab:
+                        self.vocab.append(a + b)
                 else:
                     i += 1
-            splits[word] = split # assigns the new list of tokens to the word.
+            splits[word] = split  # assigns the new list of tokens to the word.
         return splits
 
-
-    #TODO: Generated by ChatGPT, so look through the function a second time.
+    # TODO: Generated by ChatGPT, so look through the function a second time.
     def merge_pair_flat(self, a, b, tokens):
         merged_token = a + b
         new_tokens = []
@@ -132,25 +125,28 @@ class BPE:
                 i += 1
         return new_tokens
 
-
-
     def apply_tokenization(self, text):
         tokenized = list(text)
         for i in range(len(tokenized)):
-            if tokenized[i] == ' ':
-                tokenized[i] = '<space>'
+            if tokenized[i] == " ":
+                tokenized[i] = "<space>"
 
         for pair in self.merges_list:
             tokenized = self.merge_pair_flat(pair[0], pair[1], tokenized)
 
         self.tokenized = tokenized
 
-
     def generate_tokens(self, corpus):
         print(f"Initial vocab length: {len(self.vocab)}")
-        assert self.max_vocab_size > len(self.vocab), f"Maximum vocab size must be larger than initialized vocab size"
-        splits = {word: [c for c in word] for word in self.word_freqs.keys()} # initializes splits.
-        for i in range(self.max_vocab_size - len(self.vocab)): # loops until vocab size is full.
+        assert self.max_vocab_size > len(
+            self.vocab
+        ), f"Maximum vocab size must be larger than initialized vocab size"
+        splits = {
+            word: [c for c in word] for word in self.word_freqs.keys()
+        }  # initializes splits.
+        for i in range(
+            self.max_vocab_size - len(self.vocab)
+        ):  # loops until vocab size is full.
             self.compute_pair_freqs(splits)
             max_freq = 0
             max_pair = None
@@ -163,23 +159,23 @@ class BPE:
                 continue
             self.merges[max_pair] = max_pair[0] + max_pair[1]
             self.merges_list.append(max_pair)
-            splits = self.merge_pair(max_pair[0], max_pair[1], splits) # Updates splits with new merged token.
+            splits = self.merge_pair(
+                max_pair[0], max_pair[1], splits
+            )  # Updates splits with new merged token.
             self.tokens = list({word: split for word, split in splits.items()}.values())
             flattened = [token for sublist in self.tokens for token in sublist]
             self.tokens = flattened
 
 
-
-if __name__ == '__main__':
-    corpus = ("This is the Hugging Face Course. This chapter is about tokenization. "
-         + "This section shows several tokenizer algorithms."
-         + "Hopefully, you will be able to understand how they are trained and generate tokens.")
+if __name__ == "__main__":
+    corpus = (
+        "This is the Hugging Face Course. This chapter is about tokenization. "
+        + "This section shows several tokenizer algorithms."
+        + "Hopefully, you will be able to understand how they are trained and generate tokens."
+    )
 
     bpe = BPE()
     bpe.set_vocab_length(70)
     print(corpus)
     vocab, tokens, tokenized = bpe.tokenize(corpus)
     print(f"Tokens: {tokenized}")
-
-
-
