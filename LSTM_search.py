@@ -6,24 +6,27 @@ import contextlib
 import io
 
 
-def grid_search_lstm(X_input, unique_chars, learning_rates, seq_lengths, batch_sizes, num_epochs=10, hidden_size=128):
+def grid_search_lstm(X_train, X_val, unique_chars, learning_rates, seq_lengths, batch_sizes, char2ind, ind2char, num_epochs=10, hidden_size=128):
     results = []
     best_val_loss = float('inf')
     best_model_state = None
     best_lr = None
     best_batch_size = None
     best_seq_len = None
-    X_train, X_val = TrainValSplit(X_input, 0.2)
+    #X_train, X_val = TrainValTestSplit(X_input, 0.2)
     
+    with open("grid_search_lstm.txt", "a") as f:
+        f.write(f"\n-------Epochs: {num_epochs}-------\n")
+
     i = 0
+
     for lr in  tqdm(learning_rates, desc="LR loop"):
         for seq_len in seq_lengths:
+            
             for batch_size in batch_sizes:
-                #print(f"evaluating learning rate: {lr}, hidden dim: {dim} and dropout: {dropout}")
-                
                 X_train_batches, Y_train_batches = GetBatches(X_train.clone(), seq_len, batch_size)
                 X_val_batches, Y_val_batches = GetBatches(X_val.clone(), seq_len, batch_size)
-                model = LSTM(input_size=X_input.shape[1], hidden_size=hidden_size, output_size=X_input.shape[1], num_layers=2, unique_chars = unique_chars, dropout=0.2, batch_size=batch_size, seq_len=seq_len)
+                model = LSTM(input_size=X_train.shape[1], hidden_size=hidden_size, output_size=X_train.shape[1], num_layers=2, unique_chars = unique_chars, dropout=0.2, batch_size=batch_size, seq_len=seq_len, char2ind=char2ind, ind2char=ind2char)
                 with contextlib.redirect_stdout(io.StringIO()): # Simply to block prints from the train_model function.
                     loss, model_state, epochs, loss_train, loss_val = model.train_model(
                         X_train_batches,
@@ -36,7 +39,9 @@ def grid_search_lstm(X_input, unique_chars, learning_rates, seq_lengths, batch_s
                     )
 
                 min_val_loss =  min(loss_val)
-                results.append((seq_len, lr, batch_size, min_val_loss))
+                
+                with open("grid_search_lstm.txt", "a") as f:
+                    f.write(f"Sequence Length: {seq_len}, Learning rate: {lr}, Batch size: {batch_size}, Validation Loss: {min_val_loss}\n")
 
                 if min_val_loss < best_val_loss:
                     best_val_loss = min_val_loss
@@ -49,8 +54,4 @@ def grid_search_lstm(X_input, unique_chars, learning_rates, seq_lengths, batch_s
         #print("One dropout loop complete")
 
     print(f"best learning rate, dim and batch size combo: {best_lr}, {best_seq_len}, {best_batch_size}, loss: {best_val_loss:.4f}")
-    with open("grid_search_lstm.txt", "a") as f:
-        f.write(f"\n-------Epochs: {num_epochs}-------\n")
-        for result in results:
-            f.write(f"Hidden dim: {result[0]}, Learning rate: {result[1]}, Batch size: {result[2]}, Validation Loss: {result[3]}\n")
     return best_lr, best_seq_len, best_model_state, results
