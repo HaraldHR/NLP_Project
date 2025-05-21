@@ -8,9 +8,10 @@ import datetime
 from tqdm import tqdm
 import torch.nn.functional as F
 from model_RNN import RNN
+import pickle
 from DataProcessing import ReadData, GetDicts, ConvertToOneHot, TrainValSplit, GetBatches, TrainValTestSplit
 
-def grid_search_rnn(X_input, unique_chars, learning_rates, seq_lengths, batch_sizes, num_epochs=10, hidden_dim=128):
+def grid_search_rnn(X_train, X_val, unique_chars, learning_rates, seq_lengths, batch_sizes, num_epochs=10, hidden_dim=128):
     results = []
     best_val_loss = float('inf')
     best_model_state = None
@@ -18,10 +19,12 @@ def grid_search_rnn(X_input, unique_chars, learning_rates, seq_lengths, batch_si
     best_dim = None
     best_batch_size = None
 
-    X_train, X_val = TrainValSplit(X_input, 0.2)
-
     total_iteration = len(learning_rates) * len(seq_lengths) * len(batch_sizes)
     i = 0
+    with open("grid_search_rnn.txt", "a") as f:
+        f.write(f"Search at time: {datetime.datetime.now()}")
+        f.write(f"\n------- Epochs: {num_epochs} -------\n")
+
     for lr in tqdm(learning_rates, desc="LR loop"):
         for seq in tqdm(seq_lengths, desc="Hidden dims loop"):
             for batch_size in tqdm(batch_sizes, desc="Batch size loop"):
@@ -30,9 +33,9 @@ def grid_search_rnn(X_input, unique_chars, learning_rates, seq_lengths, batch_si
                 X_val_batches, Y_val_batches = GetBatches(X_val.clone(), seq, batch_size)
 
                 model = RNN(
-                    input_size=X_input.shape[1],
+                    input_size=X_train.shape[1],
                     hidden_size=hidden_dim,
-                    output_size=X_input.shape[1],
+                    output_size=X_train.shape[1],
                     num_layers=2,
                     nonlinearity='tanh',
                 )
@@ -59,13 +62,11 @@ def grid_search_rnn(X_input, unique_chars, learning_rates, seq_lengths, batch_si
                     best_batch_size = batch_size
                     best_model_state = model_state
                 i += 1
+                with open("grid_search_rnn.txt", "a") as f:
+                    f.write(
+                        f"Sequence Length: {seq}, Learning rate: {lr}, Batch size: {batch_size}, Validation Loss: {min_val_loss}\n")
 
     print(f"Best combo: LR={best_lr}, seq={best_dim}, Batch={best_batch_size}, Loss={best_val_loss:.4f}")
-    with open("grid_search_rnn.txt", "a") as f:
-        f.write(f"Search at time: {datetime.datetime.now()}")
-        f.write(f"\n------- Epochs: {num_epochs} -------\n")
-        for result in results:
-            f.write(f"Sequence Length: {result[0]}, Learning rate: {result[1]}, Batch size: {result[2]}, Validation Loss: {result[3]}\n")
 
     return best_lr, best_dim, best_model_state, results
 
@@ -75,8 +76,10 @@ def preprocess_data():
     data, unique_chars = ReadData("shakespeare.txt")
 
     # Create a mapping of character to index
-    char2ind = {char: idx for idx, char in enumerate(unique_chars)}
-    ind2char = {idx: char for idx, char in enumerate(unique_chars)}
+    with open("dicts.pkl", "rb") as f:
+        vocab = pickle.load(f)
+        char2ind = vocab['char2ind']
+        ind2char = vocab['ind2char']
 
     # Convert data to a sequence of indices
     data_indices = [char2ind[char] for char in data]
@@ -101,8 +104,8 @@ X_train_batches, Y_train_batches = GetBatches(X_train, seq_len=50, batch_size=64
 
 X_val_batches, Y_val_batches = GetBatches(X_val, seq_len=50, batch_size=64)
 
-learning_rates = [ 1e-4]
-seq_lengths = [50]
-batch_sizes = [32]
-grid_search_rnn(X_train, unique_chars, learning_rates, seq_lengths, batch_sizes, num_epochs=5)
+learning_rates = [1e-3, 3e-3, 8e-4, 6e-4, 3e-4 ,1e-4, 8e-5, 3e-5, 1e-5]
+seq_lengths = [25, 50, 75, 100]
+batch_sizes = [16, 32, 64, 128 ]
+grid_search_rnn(X_train, X_val, unique_chars, learning_rates, seq_lengths, batch_sizes, num_epochs=10)
 
