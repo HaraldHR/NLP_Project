@@ -33,7 +33,9 @@ def preprocess_data():
 
 
 
-def load_model_and_synthesize(model_path, start_char="A", seq_len = 1000):
+
+def load_model_and_synthesize(model_path, start_char="H", seq_len=1000):
+
     X_data, unique_chars = preprocess_data()
 
     with open("dicts.pkl", "rb") as f:
@@ -43,13 +45,16 @@ def load_model_and_synthesize(model_path, start_char="A", seq_len = 1000):
 
     input_size = output_size = X_data.shape[1]
     hidden_size = 256
-    num_layers = 2
-    batch_size = 32
+
+    num_layers = 1
+    #seq_len = 100
+    batch_size = 16
+
 
     if "lstm" in model_path.lower():
         model = LSTM(input_size=input_size, hidden_size=hidden_size,
                      output_size=output_size, unique_chars=unique_chars,
-                     num_layers=num_layers, batch_size=batch_size, seq_len=seq_len)
+                     num_layers=num_layers, batch_size=batch_size, seq_len=seq_len, char2ind=char2ind, ind2char=ind2char)
     else:
         model = RNN(input_size=input_size, hidden_size=hidden_size,
                     output_size=output_size, num_layers=num_layers)
@@ -93,7 +98,9 @@ if __name__ == "__main__":
     processor = TextProcessor(data_str)
 
 
-    synthesized_text =load_model_and_synthesize("best_rnn_model.pth", seq_len=1000)
-    print(synthesized_text)
+
+    synthesized_text =load_model_and_synthesize("best_lstm_model_1_layer.pth", seq_len= 1000)
+
+
 
     run_text_quality_tests(synthesized_text, processor, "Vanilla RNN")

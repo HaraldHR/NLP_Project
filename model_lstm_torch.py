@@ -8,17 +8,18 @@ import LSTM_search
 import copy
 from tqdm import tqdm
 from DataVisualization import LossPlotter
+import pickle
 
 import os
 
 class LSTM(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, unique_chars, batch_size, seq_len,  num_layers=1, dropout=0.2):
+    def __init__(self, input_size, hidden_size, output_size, unique_chars, batch_size, seq_len, char2ind, ind2char, num_layers=1, dropout=0.2):
         super(LSTM, self).__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
 
-        self.char2ind = {char: idx for idx, char in enumerate(unique_chars)}
-        self.ind2char = {idx: char for idx, char in enumerate(unique_chars)}
+        self.char2ind = char2ind
+        self.ind2char = ind2char
         self.batch_size = batch_size
         self.seq_len = seq_len
         # Define the LSTM layer
@@ -74,15 +75,15 @@ class LSTM(nn.Module):
         next_char_id = torch.multinomial(probs, 1).item() # samples from distribution.
         return next_char_id
 
-    def synth_text(self, start_char, char2ind, ind2char, seq_len=100):
+    def synth_text(self, start_char, seq_len=100):
         self.eval()  # Set the model to evaluation mode
 
         # Convert start_char to one-hot encoding
-        start_idx = char2ind[start_char]
+        start_idx = self.char2ind[start_char]
         input_char = torch.tensor([start_idx], dtype=torch.long).unsqueeze(0)  # shape (1, 1)
 
         # One-hot encode the character
-        input_one_hot = F.one_hot(input_char, num_classes=len(char2ind)).float()
+        input_one_hot = F.one_hot(input_char, num_classes=len(self.char2ind)).float()
 
         # Initialize hidden state
         hidden = self.init_hidden(batch_size=1)
@@ -97,17 +98,17 @@ class LSTM(nn.Module):
             # Apply softmax to get probabilities for the next character
 
             output_probs = F.softmax(output[-1], dim=-1)  # Use the last output for prediction
-            next_char_idx = torch.multinomial(output_probs, 1).item() # Pure Sampling
-            #next_char_idx = self.nucleus_sampling(output_probs) # Nucleus Sampling
+            #next_char_idx = torch.multinomial(output_probs, 1).item() # Pure Sampling
+            next_char_idx = self.nucleus_sampling(output_probs) # Nucleus Sampling
             #next_char_idx = self.temperature_sampling(output.squeeze())
 
             # Get the next character
-            next_char = ind2char[next_char_idx]
+            next_char = self.ind2char[next_char_idx]
             generated_text.append(next_char)
 
             # Update the input for the next time step: use the predicted character
             input_char = torch.tensor([next_char_idx], dtype=torch.long).unsqueeze(0)
-            input_one_hot = F.one_hot(input_char, num_classes=len(char2ind)).float()
+            input_one_hot = F.one_hot(input_char, num_classes=len(self.char2ind)).float()
 
         self.train()
 
@@ -183,6 +184,7 @@ class LSTM(nn.Module):
                 n += 1
             
             # check on validation set at the end of each epoch:
+            
             self.eval()
             val_loss_sum = 0
             for j in range(X_val_batches.shape[0]):
@@ -200,26 +202,26 @@ class LSTM(nn.Module):
             val_loss_avg = val_loss_sum / X_val_batches.shape[0]
             
 
-            loss_train.append(train_loss_avg)
+            
             loss_val.append(val_loss_avg)
             epochs.append(epoch)
 
-                    
+            
+            train_loss_avg = epoch_loss / X_train_batches.shape[0]
+            loss_train.append(train_loss_avg)  
             #steps_for_plotting = torch.arange(0, n, 500)
             #avg_loss = epoch_loss / num_chunks
-            print(f"Epoch {epoch + 1}/{num_epochs}, Validation Loss: {val_loss_avg}")
-            #print(f"Epoch [{epoch + 1}/{num_epochs}], Avg Loss: {avg_loss:.4f}")
-        print(f"Lowest avg loss found in epoch {np.argmin(loss_val)}")
+            #print(f"Epoch {epoch + 1}/{num_epochs}, Validation Loss: {val_loss_avg}")
+            print(f"Epoch [{epoch + 1}/{num_epochs}], Avg Loss: {val_loss_avg:.4f}")
+        #print(f"Lowest avg loss found in epoch {np.argmin(loss_val)}")
+        #best_model_state_dict = self.state_dict()
+        #print(self.synth_text("H", 1000))
         return best_loss, best_model_state_dict, epochs, loss_train, loss_val
 
 
-def preprocess_data():
+def preprocess_data(char2ind, ind2char):
     # Get the raw data and unique characters
-    data, unique_chars = ReadData()
-    
-    # Create a mapping of character to index
-    char2ind = {char: idx for idx, char in enumerate(unique_chars)}
-    ind2char = {idx: char for idx, char in enumerate(unique_chars)}
+    data, unique_chars = ReadData("shakespeare.txt")
 
     # Convert data to a sequence of indices
     data_indices = [char2ind[char] for char in data]
@@ -232,17 +234,54 @@ def preprocess_data():
 
     return X_one_hot, unique_chars
 
+def evaluate_test(X_test, model):
+    X_test_batches, Y_test_batches = GetBatches(X_test, seq_len=model.seq_len, batch_size=model.batch_size)
+    hidden = None
+    model.forward(X_test, hidden)
+    total_loss = 0
+    for i in range(X_test_batches.shape[0]):
+        criterion = nn.CrossEntropyLoss()
+        #print(f"Batch: {i+1}")
+        X_batch = X_test_batches[i] # (seq_len, 1, input_size)
+        Y_batch = Y_test_batches[i]
+        
+        target_seq = torch.argmax(Y_batch, dim=2)
+
+        # Initialize the hidden and cell states if None
+        if hidden is None:
+            hidden = model.init_hidden(batch_size=model.batch_size)
+
+        output_seq, hidden = model.forward(X_batch, hidden)
+        # Detach hidden states to avoid backprop through the entire training history
+        if hidden is not None:
+            hidden = tuple([h.detach() for h in hidden])
+
+        # Reshape output: (seq_len, batch, output_size) → (seq_len * batch, output_size)
+        output_seq = output_seq.view(-1, 65)
+        target_seq = target_seq.view(-1)
+
+
+        loss = criterion(output_seq, target_seq) # cross entropy loss
+        total_loss += loss.item() # for average
+    test_loss = total_loss/X_test_batches.shape[0]
+    print(f"Test loss: {test_loss}")
+    return test_loss
 
 def main():
     # Parameters
     input_size = 65  # Modify based on unique_chars length
-    hidden_size = 256
+    hidden_size = 512
     output_size = 65  # Modify based on unique_chars length
     num_layers = 2
-    seq_len = 50
-    num_epochs = 40
-    learning_rate = 0.001
-    batch_size = 32
+    seq_len = 100
+    num_epochs = 30
+    learning_rate = 0.003
+    batch_size = 16
+
+    with open("dicts.pkl", "rb") as f:
+        vocab = pickle.load(f)
+        char2ind = vocab['char2ind']
+        ind2char = vocab['ind2char']
 
     best_model_path = "best_lstm_model.pth"
     best_loss_path = "best_loss_lstm.txt"
@@ -255,25 +294,37 @@ def main():
         best_loss_ever = float('inf')  # If not found, use infinity as the initial best
     
     # Preprocess data
-    X_data, unique_chars = preprocess_data()
+    X_data, unique_chars = preprocess_data(char2ind, ind2char)
 
     X_train, X_val, X_test = TrainValTestSplit(X_data)
+    """
+    model = LSTM(input_size=input_size, hidden_size=hidden_size,
+                     output_size=output_size, unique_chars=unique_chars,
+                     num_layers=num_layers, batch_size=batch_size, seq_len=seq_len, char2ind=char2ind, ind2char=ind2char)
+    model.load_state_dict(torch.load("best_lstm_model.pth"))
+    evaluate_test(X_test, model)
+    """
 
+    #X_train = torch.cat((X_train, X_val))
     X_train_batches, Y_train_batches = GetBatches(X_train, seq_len=seq_len, batch_size=batch_size)
 
     X_val_batches, Y_val_batches = GetBatches(X_val, seq_len=seq_len, batch_size=batch_size) # Simply for input shape for the forwardpass, we make on big batch
-
+    
     """
-    learning_rates = [1e-5, 3e-5, 1e-4, 3e-4, 5e-4, 1e-3]
-    seq_lengths = [25, 50, 75, 100]
-    batch_sizes = [16, 32, 64, 128]
-    LSTM_search.grid_search_lstm(X_train, unique_chars, learning_rates, seq_lengths, batch_sizes, num_epochs=10)
+    learning_rates = [1e-3, 3e-3, 5e-3]
+    seq_lengths = [75, 100]
+    batch_sizes = [16, 32]
+    LSTM_search.grid_search_lstm(X_train, X_val, unique_chars, learning_rates, seq_lengths, batch_sizes, num_epochs=10, char2ind=char2ind, ind2char=ind2char)
     """
     
     # Initialize the LSTM model
-    model = LSTM(input_size=input_size, hidden_size=hidden_size, unique_chars = unique_chars, output_size=output_size, num_layers=num_layers, batch_size = batch_size, seq_len = seq_len)
+    model = LSTM(input_size=input_size, hidden_size=hidden_size, unique_chars = unique_chars, output_size=output_size, num_layers=num_layers, batch_size = batch_size, seq_len = seq_len, char2ind=char2ind, ind2char=ind2char)
     
-    # Train the model
+   
+    #torch.save(best_model_state_dict, best_model_path)
+    #print("SAVED")
+    
+     # Train the model
     best_loss_after, best_model_state_dict, epochs_for_plot, train_loss, val_loss = model.train_model(X_train_batches, Y_train_batches, X_val_batches, Y_val_batches, num_epochs, learning_rate=learning_rate, best_loss_ever = best_loss_ever)
     if best_loss_after < best_loss_ever:
         # Write best result to to files
