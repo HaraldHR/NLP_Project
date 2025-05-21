@@ -33,6 +33,32 @@ class RNN(nn.Module):
         output = self.fc(rnn_out)  # (seq_len, batch, output_size)
         return output, hidden
 
+    def forward_loss(self, X_batches, Y_batches):
+        self.eval()
+        output_size = self.fc.out_features
+        criterion = nn.CrossEntropyLoss()
+        total_loss = 0.0
+        hidden = None
+
+        with torch.no_grad():
+            for X_batch, Y_batch in zip(X_batches, Y_batches):
+                target_seq = torch.argmax(Y_batch, dim=2)  # shape: (seq_len, batch)
+                output_seq, hidden = self.forward(X_batch, hidden)
+
+                if hidden is not None:
+                    if isinstance(hidden, tuple):
+                        hidden = tuple(h.detach() for h in hidden)
+                    else:
+                        hidden = hidden.detach()
+
+                output_seq = output_seq.view(-1, output_size)
+                target_seq = target_seq.view(-1)
+
+                loss = criterion(output_seq, target_seq)
+                total_loss += loss.item()
+
+        avg_loss = total_loss / len(X_batches)
+        return avg_loss
     def train_model(self, X_train_batches, Y_train_batches, X_val_batches, Y_val_batches, num_epochs,
                     learning_rate=0.001, best_loss_ever=1e6):
         output_size = self.fc.out_features
@@ -89,7 +115,7 @@ class RNN(nn.Module):
                     print(f"Iteration {n}, Smooth Loss: {smooth_loss_train:.4f}")
 
                 n += 1
-
+            """
             # --- Validation ---
             self.eval()
             val_loss_sum = 0.0
@@ -104,18 +130,19 @@ class RNN(nn.Module):
                     if val_loss.item() < best_loss:
                         best_loss = val_loss.item()
                         best_model_state_dict = self.state_dict()
-
+            """
             self.train()
             train_loss_avg = epoch_loss / X_train_batches.shape[0]
-            val_loss_avg = val_loss_sum / X_val_batches.shape[0]
+            best_model_state_dict = self.state_dict()
+            #val_loss_avg = val_loss_sum / X_val_batches.shape[0]
 
 
 
             loss_train.append(train_loss_avg)
-            loss_val.append(val_loss_avg)
+            #loss_val.append(val_loss_avg)
             epochs.append(epoch)
 
-            print(f"Epoch [{epoch + 1}/{num_epochs}], Train Loss: {train_loss_avg:.4f}, Val Loss: {val_loss_avg:.4f}")
+            print(f"Epoch [{epoch + 1}/{num_epochs}], Train Loss: {train_loss_avg:.4f}")
 
         return loss_train, loss_val, epochs, best_loss, best_model_state_dict
 

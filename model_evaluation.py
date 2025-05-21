@@ -33,7 +33,7 @@ def preprocess_data():
 
 
 
-def load_model_and_synthesize(model_path, start_char="A", seq_len=100):
+def load_model_and_synthesize(model_path, start_char="A", seq_len = 1000):
     X_data, unique_chars = preprocess_data()
 
     with open("dicts.pkl", "rb") as f:
@@ -44,7 +44,6 @@ def load_model_and_synthesize(model_path, start_char="A", seq_len=100):
     input_size = output_size = X_data.shape[1]
     hidden_size = 256
     num_layers = 2
-    seq_len = 50
     batch_size = 32
 
     if "lstm" in model_path.lower():
@@ -52,22 +51,19 @@ def load_model_and_synthesize(model_path, start_char="A", seq_len=100):
                      output_size=output_size, unique_chars=unique_chars,
                      num_layers=num_layers, batch_size=batch_size, seq_len=seq_len)
     else:
-        print("RNN identified")
         model = RNN(input_size=input_size, hidden_size=hidden_size,
                     output_size=output_size, num_layers=num_layers)
-    first = print(model.state_dict())
     model.load_state_dict(torch.load(model_path))
-    second = print("Loaded model")
-    print(model.state_dict())
+
+
 
     #compare_state_dicts(first, second)
     model.eval()
-
+    print(seq_len)
 
     if isinstance(model, LSTM):
         return model.synth_text(start_char, seq_len=seq_len)
     elif isinstance(model, RNN):
-        print("Synthesizing")
         start_idx = char2ind[start_char]
         one_hot = F.one_hot(torch.tensor(start_idx), num_classes=input_size).float().numpy()
         return model.synthesize_text(x0=one_hot, n=seq_len, ind_to_char=ind2char, char_to_ind=char2ind)
@@ -97,7 +93,7 @@ if __name__ == "__main__":
     processor = TextProcessor(data_str)
 
 
-    synthesized_text =load_model_and_synthesize("best_rnn_model.pth", seq_len= 200)
+    synthesized_text =load_model_and_synthesize("best_rnn_model.pth", seq_len=1000)
+    print(synthesized_text)
 
-
-    run_text_quality_tests(synthesized_text, processor, "No Model, Just Test")
+    run_text_quality_tests(synthesized_text, processor, "Vanilla RNN")
