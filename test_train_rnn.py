@@ -36,7 +36,6 @@ output_size = len(char_to_ind)
 num_layers = 3
 num_epochs = 4
 
-
 model = RNN(input_size, hidden_size, output_size, num_layers)
 
 subset_length = 100000

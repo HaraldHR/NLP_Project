@@ -47,10 +47,11 @@ with open("dicts.pkl", "rb") as f:
 
 
 X_train, X_val, X_test = TrainValTestSplit(X_data, 0.8, 0.1)
+X_train = torch.cat((X_train, X_val))
 
-X_train_batches, Y_train_batches = GetBatches(X_train, seq_len=50, batch_size=32)
+X_train_batches, Y_train_batches = GetBatches(X_train, seq_len=100, batch_size=16)
 
-X_val_batches, Y_val_batches = GetBatches(X_val, seq_len=50, batch_size=32)
+X_val_batches, Y_val_batches = GetBatches(X_val, seq_len=100, batch_size=16)
 data_str, _ = ReadData("shakespeare.txt")
 processor = TextProcessor(data_str)
 
@@ -69,8 +70,8 @@ loss, loss_val, epochs, best_loss, model_state = model.train_model(
     Y_train_batches,
     X_val_batches,
     Y_val_batches,
-    num_epochs=3,
-    learning_rate=0.001,
+    num_epochs=10,
+    learning_rate=0.003,
     best_loss_ever=10000  # Doesn't matter in search
 )
 
@@ -90,4 +91,4 @@ with open("generated_text_rnn.txt", "w", encoding="utf-8") as f:
     f.write(generated + "\n\n")
     f.write(f"Best Loss: {best_loss:.4f}\n")
 
-LossPlotter.plot_losses(loss, loss_val, epochs)
+#LossPlotter.plot_losses(loss, loss_val, epochs)
